@@ -1,0 +1,9 @@
+summary: Shared Paperless-ngx API client
+description: Provides get, post, patch, paginate functions for Paperless API.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties: {}
+  required: []

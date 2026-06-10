@@ -1,0 +1,23 @@
+summary: Multi-level semantic chunking
+description: Builds L1 summary, L2 section and L3 fine chunks with semantic importance scoring.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+    text:
+      type: string
+    analysis:
+      type: object
+    correspondent_name:
+      type: string
+      nullable: true
+    tag_names:
+      type: array
+  required:
+    - doc_id
+    - text
+    - analysis

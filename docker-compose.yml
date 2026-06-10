@@ -1,0 +1,99 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    logging: *default-logging
+
+  windmill-db:
+    image: postgres:16
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-windmill}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-windmill}
+      POSTGRES_DB: ${POSTGRES_DB:-windmill}
+    volumes:
+      - windmill_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-windmill}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  windmill-server:
+    image: ${WM_IMAGE:-ghcr.io/windmill-labs/windmill:main}
+    restart: unless-stopped
+    depends_on:
+      windmill-db:
+        condition: service_healthy
+    ports:
+      - "${WINDMILL_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://windmill:windmill@windmill-db:5432/windmill}
+      MODE: server
+      BASE_URL: ${WINDMILL_BASE_URL:-http://localhost:8000}
+    logging: *default-logging
+
+  windmill-worker:
+    image: ${WM_IMAGE:-ghcr.io/windmill-labs/windmill:main}
+    restart: unless-stopped
+    depends_on:
+      windmill-db:
+        condition: service_healthy
+    deploy:
+      replicas: ${WINDMILL_WORKER_REPLICAS:-1}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://windmill:windmill@windmill-db:5432/windmill}
+      MODE: worker
+      WORKER_GROUP: default
+      PAPERLESS_URL: ${PAPERLESS_URL}
+      PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
+      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-qwen3}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-paiperless_documents}
+      HERMES_WEBHOOK_URL: ${HERMES_WEBHOOK_URL:-}
+      HERMES_WEBHOOK_SECRET: ${HERMES_WEBHOOK_SECRET:-}
+      MATRIX_HOMESERVER: ${MATRIX_HOMESERVER:-}
+      MATRIX_ACCESS_TOKEN: ${MATRIX_ACCESS_TOKEN:-}
+      MATRIX_ROOM_ID: ${MATRIX_ROOM_ID:-}
+      NOTIFY_MODE: ${NOTIFY_MODE:-log}
+      WHITELIST_ENVS: "PAPERLESS_URL,PAPERLESS_API_TOKEN,OLLAMA_URL,OLLAMA_LLM_MODEL,OLLAMA_EMBED_MODEL,QDRANT_URL,QDRANT_COLLECTION,HERMES_WEBHOOK_URL,HERMES_WEBHOOK_SECRET,MATRIX_HOMESERVER,MATRIX_ACCESS_TOKEN,MATRIX_ROOM_ID,NOTIFY_MODE"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging: *default-logging
+
+  search:
+    build: ./search
+    restart: unless-stopped
+    ports:
+      - "${SEARCH_PORT:-8888}:8000"
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-paiperless_documents}
+      OLLAMA_URL: ${OLLAMA_URL}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
+      PAPERLESS_URL: ${PAPERLESS_URL}
+      PAPERLESS_API_TOKEN: ${PAPERLESS_API_TOKEN}
+    depends_on:
+      - qdrant
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging: *default-logging
+
+volumes:
+  qdrant_data:
+  windmill_db_data:

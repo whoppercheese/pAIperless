@@ -1,0 +1,13 @@
+summary: Fetch document from Paperless-ngx
+description: Loads OCR text and existing tags/correspondents from Paperless.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+      description: Paperless document ID
+  required:
+    - doc_id

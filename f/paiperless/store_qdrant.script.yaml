@@ -1,0 +1,12 @@
+summary: Store embeddings in Qdrant
+description: Upserts chunk vectors with payload and replaces existing points for the document.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    embedded_chunks:
+      type: array
+  required:
+    - embedded_chunks

@@ -1,0 +1,9 @@
+summary: Webhook preprocessor for Paperless doc_url
+description: Extracts doc_id from Paperless webhook payload.
+lock: ''
+kind: preprocessor
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties: {}
+  required: []

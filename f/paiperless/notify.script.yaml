@@ -1,0 +1,23 @@
+summary: Send processing warnings and status
+description: Logs by default, optionally sends to Matrix or Hermes webhook.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+    title:
+      type: string
+    tag_names:
+      type: array
+    correspondent_name:
+      type: string
+    document_type_name:
+      type: string
+    warnings:
+      type: array
+  required:
+    - doc_id
+    - title

@@ -1,0 +1,51 @@
+{% if not documents %}
+<article>
+  <p>Keine Ergebnisse für <strong>{{ query }}</strong>.</p>
+</article>
+{% else %}
+<p><small>{{ documents|length }} Dokument{{ 'e' if documents|length != 1 }} für <strong>{{ query }}</strong></small></p>
+{% for doc in documents %}
+<article>
+  <header>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+      <span>
+        {% if paperless_url and doc.doc_id %}
+        <a href="{{ paperless_url }}/documents/{{ doc.doc_id }}/details" target="_blank" rel="noopener">
+          {{ doc.title or ('Dokument #' ~ doc.doc_id) }}
+        </a>
+        {% else %}
+        {{ doc.title or ('Dokument #' ~ (doc.doc_id or '?')) }}
+        {% endif %}
+        {% if doc.doc_nature %}
+        &mdash; <em>{{ doc.doc_nature }}</em>
+        {% endif %}
+      </span>
+      <span>
+        <kbd>{{ "%.1f"|format(doc.relevance * 100) }}%</kbd>
+        <small style="color:var(--pico-muted-color); margin-left:0.25rem;">({{ doc.count }} Chunk{{ 's' if doc.count != 1 }})</small>
+      </span>
+    </div>
+    {% if doc.correspondent or doc.tags %}
+    <small style="display:flex; gap:1rem; flex-wrap:wrap; color:var(--pico-muted-color); margin-top:0.25rem;">
+      {% if doc.correspondent %}
+      <span>{{ doc.correspondent }}</span>
+      {% endif %}
+      {% if doc.tags %}
+      <span>{{ doc.tags | join(', ') }}</span>
+      {% endif %}
+    </small>
+    {% endif %}
+  </header>
+
+  {% for chunk in doc.chunks %}
+  <details{% if loop.first %} open{% endif %}>
+    <summary style="font-size:0.875rem;">
+      {{ chunk.chunk_type }} / {{ chunk.chunk_level }}
+      &mdash; <kbd style="font-size:0.75rem;">{{ "%.1f"|format(chunk.boosted_score * 100) }}%</kbd>
+    </summary>
+    <pre style="white-space:pre-wrap; word-break:break-word; font-family:inherit; background:var(--pico-card-background-color); margin:0.5rem 0 0; padding:0; border:0; font-size:0.875rem;">{{ chunk.text }}</pre>
+  </details>
+  {% endfor %}
+</article>
+{% endfor %}
+{% endif %}

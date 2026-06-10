@@ -1,0 +1,239 @@
+summary: Process new Paperless document
+description: >-
+  Triggered by Paperless webhook. Fetches document, analyzes structure,
+  generates metadata, chunks text, embeds with bge-m3 and stores in Qdrant.
+value:
+  same_worker: true
+  preprocessor_module:
+    id: preprocessor
+    summary: Parse Paperless doc_url
+    value:
+      type: script
+      path: f/paiperless/preprocess_webhook
+  failure_module:
+    id: failure
+    summary: Notify on flow error
+    value:
+      type: rawscript
+      language: python3
+      input_transforms:
+        error:
+          type: javascript
+          expr: "previous_result.error ?? previous_result"
+      content: |
+        import hashlib
+        import hmac
+        import json
+        import os
+
+        import httpx
+
+
+        def main(error: dict | None = None):
+            if not error:
+                error = {}
+            if isinstance(error, str):
+                error = {"message": error}
+            step_id = error.get("step_id", "unknown")
+            name = error.get("name", "Error")
+            message_text = error.get("message", str(error) if error else "Unbekannter Fehler")
+            stack = error.get("stack", "")
+
+            lines = [
+                "pAIperless: Flow fehlgeschlagen!",
+                f"Step: {step_id}",
+                f"Fehler: {name}",
+                f"Details: {message_text}",
+            ]
+            if stack:
+                lines.append(f"Stack: {stack[:500]}")
+            notification = "\n".join(lines)
+
+            mode = os.environ.get("NOTIFY_MODE", "log").lower()
+            if mode == "hermes":
+                webhook_url = os.environ.get("HERMES_WEBHOOK_URL", "")
+                secret = os.environ.get("HERMES_WEBHOOK_SECRET", "")
+                if webhook_url and secret:
+                    payload = {"event": "paiperless.flow_error", "message": notification}
+                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                    signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+                    with httpx.Client(timeout=30.0) as client:
+                        client.post(webhook_url, content=body, headers={
+                            "Content-Type": "application/json",
+                            "X-Webhook-Signature": signature,
+                        })
+            else:
+                print(notification)
+
+            return {"error": error, "notified": mode != "log", "mode": mode}
+  modules:
+    - id: fetch
+      summary: Fetch document from Paperless
+      value:
+        type: script
+        path: f/paiperless/fetch_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: flow_input.doc_id
+    - id: classify
+      summary: Analyze document and select document type
+      value:
+        type: script
+        path: f/paiperless/classify_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          text:
+            type: javascript
+            expr: results.fetch.text
+          existing_document_types:
+            type: javascript
+            expr: results.fetch.existing_document_types
+    - id: metadata
+      summary: Generate title, tags and correspondent
+      value:
+        type: script
+        path: f/paiperless/generate_metadata
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          text:
+            type: javascript
+            expr: results.fetch.text
+          analysis:
+            type: javascript
+            expr: results.classify
+          existing_tags:
+            type: javascript
+            expr: results.fetch.existing_tags
+          existing_correspondents:
+            type: javascript
+            expr: results.fetch.existing_correspondents
+          added_date:
+            type: javascript
+            expr: results.fetch.added_date
+    - id: update
+      summary: Update Paperless metadata
+      value:
+        type: script
+        path: f/paiperless/update_paperless
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.metadata.doc_id
+          title:
+            type: javascript
+            expr: results.metadata.title
+          selected_tags:
+            type: javascript
+            expr: results.metadata.selected_tags
+          new_tags:
+            type: javascript
+            expr: results.metadata.new_tags
+          selected_correspondent:
+            type: javascript
+            expr: results.metadata.selected_correspondent
+          new_correspondent:
+            type: javascript
+            expr: results.metadata.new_correspondent
+          existing_tags:
+            type: javascript
+            expr: results.fetch.existing_tags
+          existing_correspondents:
+            type: javascript
+            expr: results.fetch.existing_correspondents
+          existing_document_types:
+            type: javascript
+            expr: results.fetch.existing_document_types
+          selected_document_type:
+            type: javascript
+            expr: results.classify.selected_document_type
+          new_document_type:
+            type: javascript
+            expr: results.classify.new_document_type
+          document_date:
+            type: javascript
+            expr: results.metadata.document_date
+          document_type_warnings:
+            type: javascript
+            expr: results.classify.document_type_warnings
+          warnings:
+            type: javascript
+            expr: results.metadata.warnings
+          analysis:
+            type: javascript
+            expr: results.metadata.analysis
+    - id: chunk
+      summary: Build multi-level chunks
+      value:
+        type: script
+        path: f/paiperless/chunk_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          text:
+            type: javascript
+            expr: results.fetch.text
+          analysis:
+            type: javascript
+            expr: results.classify
+          correspondent_name:
+            type: javascript
+            expr: results.update.correspondent_name
+          tag_names:
+            type: javascript
+            expr: results.update.tag_names
+    - id: embed
+      summary: Generate embeddings
+      value:
+        type: script
+        path: f/paiperless/generate_embeddings
+        input_transforms:
+          chunks:
+            type: javascript
+            expr: results.chunk.chunks
+    - id: store
+      summary: Store vectors in Qdrant
+      value:
+        type: script
+        path: f/paiperless/store_qdrant
+        input_transforms:
+          embedded_chunks:
+            type: javascript
+            expr: results.embed.embedded_chunks
+    - id: notify
+      summary: Send warnings and status
+      value:
+        type: script
+        path: f/paiperless/notify
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.update.doc_id
+          title:
+            type: javascript
+            expr: results.update.title
+          tag_names:
+            type: javascript
+            expr: results.update.tag_names
+          correspondent_name:
+            type: javascript
+            expr: results.update.correspondent_name
+          document_type_name:
+            type: javascript
+            expr: results.update.document_type_name
+          warnings:
+            type: javascript
+            expr: results.update.warnings
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+      description: Paperless document ID (set by preprocessor from doc_url)
+  required: []

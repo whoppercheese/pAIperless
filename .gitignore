@@ -1,0 +1,4 @@
+.env
+.wmill/
+wmill-lock.yaml
+__pycache__/

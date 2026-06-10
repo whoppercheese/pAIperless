@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pAIperless Search</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    :root {
+      --pico-font-size: 16px;
+    }
+    body > main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+    h1 { margin-bottom: 0.25rem; }
+    .subtitle { color: var(--pico-muted-color); margin-bottom: 2rem; }
+    .filters { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .filters select, .filters input[type="number"] { margin-bottom: 0; }
+    .filters label { flex: 1; min-width: 140px; }
+    #results { margin-top: 1.5rem; }
+    #spinner {
+      display: none;
+      text-align: center;
+      padding: 2rem 0;
+      color: var(--pico-muted-color);
+    }
+    #spinner.htmx-request {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>pAIperless Search</h1>
+    <p class="subtitle">Semantische Suche in deinen Dokumenten</p>
+
+    <form hx-post="/search" hx-target="#results" hx-indicator="#spinner">
+      <fieldset role="group">
+        <input
+          type="search"
+          name="query"
+          placeholder="Suchbegriff eingeben..."
+          required
+          autofocus
+        >
+        <button type="submit">Suchen</button>
+      </fieldset>
+
+      <details>
+        <summary>Filter</summary>
+        <div class="filters">
+          <label>
+            Korrespondent
+            <select name="correspondent">
+              <option value="">Alle</option>
+              {% for c in correspondents %}
+              <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Tag
+            <select name="tag">
+              <option value="">Alle</option>
+              {% for t in tags %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Chunk-Level
+            <select name="chunk_level">
+              <option value="">Alle</option>
+              <option value="L1">L1 (Summary)</option>
+              <option value="L2">L2 (Section)</option>
+              <option value="L3">L3 (Fine)</option>
+            </select>
+          </label>
+          <label>
+            Limit
+            <input type="number" name="limit" value="20" min="1" max="100">
+          </label>
+        </div>
+      </details>
+    </form>
+
+    <div id="spinner" class="htmx-indicator">
+      <p aria-busy="true">Embedding wird erzeugt und Vektoren durchsucht...</p>
+    </div>
+    <div id="results"></div>
+  </main>
+</body>
+</html>

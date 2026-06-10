@@ -1,0 +1,12 @@
+summary: Generate embeddings with bge-m3
+description: Creates 1024-dim vectors for all chunks via Ollama.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    chunks:
+      type: array
+  required:
+    - chunks
