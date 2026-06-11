@@ -39,7 +39,7 @@ def _log_llm_response(raw_response: str, parsed: dict | None = None) -> None:
 def chat_json(
     system: str,
     user: str,
-    temperature: float = 0.2,
+    temperature: float = 0,
     format_schema: dict | None = None,
 ) -> dict:
     url = os.environ["OLLAMA_URL"].rstrip("/")
