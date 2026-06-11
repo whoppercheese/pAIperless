@@ -1,6 +1,6 @@
-summary: Shared document chunking logic
-description: Multi-level chunking with semantic importance scoring.
-lock: ''
+summary: ''
+description: ''
+lock: '!inline f/paiperless/shared/text_utils.script.lock'
 kind: script
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema

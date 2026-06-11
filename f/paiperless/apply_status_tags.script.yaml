@@ -1,0 +1,24 @@
+summary: Apply AI-Warning tag when processing had warnings
+description: Merges warnings from all pipeline steps and tags the document with AI-Warning in Paperless.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+    summarize_warnings:
+      type: array
+      nullable: true
+    analyze_warnings:
+      type: array
+      nullable: true
+    update_warnings:
+      type: array
+      nullable: true
+    chunk_warnings:
+      type: array
+      nullable: true
+  required:
+    - doc_id

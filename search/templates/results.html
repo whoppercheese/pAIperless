@@ -16,8 +16,8 @@
         {% else %}
         {{ doc.title or ('Dokument #' ~ (doc.doc_id or '?')) }}
         {% endif %}
-        {% if doc.doc_nature %}
-        &mdash; <em>{{ doc.doc_nature }}</em>
+        {% if doc.document_type %}
+        &mdash; <em>{{ doc.document_type }}</em>
         {% endif %}
       </span>
       <span>
@@ -40,8 +40,8 @@
   {% for chunk in doc.chunks %}
   <details{% if loop.first %} open{% endif %}>
     <summary style="font-size:0.875rem;">
-      {{ chunk.chunk_type }} / {{ chunk.chunk_level }}
-      &mdash; <kbd style="font-size:0.75rem;">{{ "%.1f"|format(chunk.boosted_score * 100) }}%</kbd>
+      {{ chunk.label or chunk.chunk_kind }}
+      &mdash; <kbd style="font-size:0.75rem;">{{ "%.1f"|format(chunk.score * 100) }}%</kbd>
     </summary>
     <pre style="white-space:pre-wrap; word-break:break-word; font-family:inherit; background:var(--pico-card-background-color); margin:0.5rem 0 0; padding:0; border:0; font-size:0.875rem;">{{ chunk.text }}</pre>
   </details>

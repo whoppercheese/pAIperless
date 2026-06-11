@@ -1,0 +1,36 @@
+summary: Extract metadata from document summary
+description: Fast LLM call to extract title, date, document type, correspondent and tags from the summary.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+    summary:
+      type: string
+    existing_document_types:
+      type: array
+    existing_tags:
+      type: array
+    existing_correspondents:
+      type: array
+    added_date:
+      type: string
+      default: ''
+    pre_selected_tag_names:
+      type: array
+      nullable: true
+    document_language:
+      type: string
+      default: de
+    summarize_warnings:
+      type: array
+      nullable: true
+  required:
+    - doc_id
+    - summary
+    - existing_document_types
+    - existing_tags
+    - existing_correspondents

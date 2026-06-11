@@ -1,0 +1,15 @@
+summary: Handle flow failure notification and AI-Error tag
+description: Notifies about the failure and tags the document with AI-Error in Paperless.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    error:
+      type: object
+      nullable: true
+    doc_id:
+      type: integer
+      nullable: true
+  required: []

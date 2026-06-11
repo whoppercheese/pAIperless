@@ -15,14 +15,12 @@ def main(chunks: list) -> dict:
             "payload": {
                 "doc_id": chunk["doc_id"],
                 "chunk_index": index,
-                "chunk_type": chunk["chunk_type"],
-                "chunk_level": chunk["chunk_level"],
+                "chunk_kind": chunk["chunk_kind"],
+                "label": chunk.get("label", ""),
                 "correspondent": chunk.get("correspondent"),
                 "tags": chunk.get("tags", []),
                 "text": chunk["text"],
-                "importance": chunk["importance"],
-                "importance_reason": chunk["importance_reason"],
-                "doc_nature": chunk.get("doc_nature"),
+                "document_type": chunk.get("document_type"),
             },
         })
 

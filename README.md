@@ -13,7 +13,7 @@ flowchart LR
     Fetch --> Classify["Dynamic Analysis (qwen)"]
     Classify --> Metadata["Title / Tags / Correspondent"]
     Metadata --> UpdatePL["Update Paperless"]
-    UpdatePL --> Chunk["Multi-Level Chunking"]
+    UpdatePL --> Chunk["LLM Chunking"]
     Chunk --> Embed["Embeddings (bge-m3)"]
     Embed --> StoreQdrant["Store in Qdrant"]
     StoreQdrant --> Notify["Notify"]
@@ -27,8 +27,7 @@ flowchart LR
 
 - **Trigger**: Paperless-ngx Webhook bei neuem Dokument
 - **Metadaten**: Titel, Tags und Korrespondent via Ollama/qwen
-- **Dynamische Analyse**: keine festen Dokumenttypen — das Modell beschreibt Struktur und Wichtigkeit frei
-- **Semantische Chunk-Gewichtung**: High (Header, Summary, Totals), Normal (Fließtext), Low (Boilerplate)
+- **LLM-Chunking**: separates LLM-Splitting in semantische Teil-Chunks plus Summary-Embedding
 - **Embeddings**: Ollama/bge-m3 (1024 Dimensionen) in Qdrant
 - **Warnings**: bei neu angelegten Tags/Korrespondenten (Logging, Matrix oder Hermes)
 - **Search UI**: semantische Suche über alle Dokumente mit Filterung und Dokument-Gruppierung (FastAPI + HTMX)
@@ -98,7 +97,7 @@ Semantische Suche über die in Qdrant gespeicherten Dokument-Chunks. Erreichbar 
 
 - Suchanfrage wird via Ollama/bge-m3 in einen Embedding-Vektor umgewandelt
 - Qdrant liefert die ähnlichsten Chunks, gruppiert nach Dokument
-- Optionale Filter: Korrespondent, Tag, Chunk-Level
+- Optionale Filter: Korrespondent, Tag, Chunk-Typ (Summary / Teil-Chunks)
 - Ergebnisse verlinken direkt auf das Paperless-Dokument
 
 Port konfigurierbar via `SEARCH_PORT` in `.env` (Standard: `8888`).
@@ -134,14 +133,12 @@ search/                      # Search UI (FastAPI + HTMX)
   "vector": [0.1, 0.2, "..."],
   "payload": {
     "doc_id": 123,
-    "chunk_type": "header",
-    "chunk_level": "L2",
+    "chunk_kind": "chunk",
+    "label": "Rechnungspositionen",
     "correspondent": "Telekom",
     "tags": ["rechnung"],
     "text": "...",
-    "importance": 0.9,
-    "importance_reason": "high:Rechnungskopf",
-    "doc_nature": "Mobilfunkrechnung"
+    "document_type": "Rechnung"
   }
 }
 ```

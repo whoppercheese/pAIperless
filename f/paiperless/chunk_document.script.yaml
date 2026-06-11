@@ -1,5 +1,5 @@
-summary: Multi-level semantic chunking
-description: Builds L1 summary, L2 section and L3 fine chunks with semantic importance scoring.
+summary: LLM semantic chunking
+description: Splits document text into semantic chunks via LLM and adds the summary as a separate embedding chunk.
 lock: ''
 kind: script
 schema:
@@ -10,14 +10,20 @@ schema:
       type: integer
     text:
       type: string
-    analysis:
-      type: object
+    summary:
+      type: string
+      default: ''
+    document_type_name:
+      type: string
+      nullable: true
     correspondent_name:
       type: string
       nullable: true
     tag_names:
       type: array
+    document_language:
+      type: string
+      default: de
   required:
     - doc_id
     - text
-    - analysis

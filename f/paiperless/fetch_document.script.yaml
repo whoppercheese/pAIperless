@@ -1,5 +1,5 @@
 summary: Fetch document from Paperless-ngx
-description: Loads OCR text and existing tags/correspondents from Paperless.
+description: Loads OCR text, document language and existing tags/correspondents from Paperless.
 lock: ''
 kind: script
 schema:

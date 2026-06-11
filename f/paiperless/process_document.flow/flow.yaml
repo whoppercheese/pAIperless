@@ -1,7 +1,7 @@
 summary: Process new Paperless document
 description: >-
   Triggered by Paperless webhook. Fetches document, analyzes structure,
-  generates metadata, chunks text, embeds with bge-m3 and stores in Qdrant.
+  generates metadata, LLM-chunks text, embeds with bge-m3 and stores in Qdrant.
 value:
   same_worker: true
   preprocessor_module:
@@ -12,60 +12,17 @@ value:
       path: f/paiperless/preprocess_webhook
   failure_module:
     id: failure
-    summary: Notify on flow error
+    summary: Notify on flow error and tag AI-Error
     value:
-      type: rawscript
-      language: python3
+      type: script
+      path: f/paiperless/handle_flow_failure
       input_transforms:
         error:
           type: javascript
           expr: "previous_result.error ?? previous_result"
-      content: |
-        import hashlib
-        import hmac
-        import json
-        import os
-
-        import httpx
-
-
-        def main(error: dict | None = None):
-            if not error:
-                error = {}
-            if isinstance(error, str):
-                error = {"message": error}
-            step_id = error.get("step_id", "unknown")
-            name = error.get("name", "Error")
-            message_text = error.get("message", str(error) if error else "Unbekannter Fehler")
-            stack = error.get("stack", "")
-
-            lines = [
-                "pAIperless: Flow fehlgeschlagen!",
-                f"Step: {step_id}",
-                f"Fehler: {name}",
-                f"Details: {message_text}",
-            ]
-            if stack:
-                lines.append(f"Stack: {stack[:500]}")
-            notification = "\n".join(lines)
-
-            mode = os.environ.get("NOTIFY_MODE", "log").lower()
-            if mode == "hermes":
-                webhook_url = os.environ.get("HERMES_WEBHOOK_URL", "")
-                secret = os.environ.get("HERMES_WEBHOOK_SECRET", "")
-                if webhook_url and secret:
-                    payload = {"event": "paiperless.flow_error", "message": notification}
-                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-                    signature = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-                    with httpx.Client(timeout=30.0) as client:
-                        client.post(webhook_url, content=body, headers={
-                            "Content-Type": "application/json",
-                            "X-Webhook-Signature": signature,
-                        })
-            else:
-                print(notification)
-
-            return {"error": error, "notified": mode != "log", "mode": mode}
+        doc_id:
+          type: javascript
+          expr: flow_input.doc_id
   modules:
     - id: fetch
       summary: Fetch document from Paperless
@@ -76,11 +33,11 @@ value:
           doc_id:
             type: javascript
             expr: flow_input.doc_id
-    - id: classify
-      summary: Analyze document and select document type
+    - id: summarize
+      summary: Summarize document and extract date with LLM
       value:
         type: script
-        path: f/paiperless/classify_document
+        path: f/paiperless/summarize_document
         input_transforms:
           doc_id:
             type: javascript
@@ -88,24 +45,24 @@ value:
           text:
             type: javascript
             expr: results.fetch.text
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
+    - id: analyze
+      summary: Extract metadata from document summary
+      value:
+        type: script
+        path: f/paiperless/analyze_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          summary:
+            type: javascript
+            expr: results.summarize.summary
           existing_document_types:
             type: javascript
             expr: results.fetch.existing_document_types
-    - id: metadata
-      summary: Generate title, tags and correspondent
-      value:
-        type: script
-        path: f/paiperless/generate_metadata
-        input_transforms:
-          doc_id:
-            type: javascript
-            expr: results.fetch.doc_id
-          text:
-            type: javascript
-            expr: results.fetch.text
-          analysis:
-            type: javascript
-            expr: results.classify
           existing_tags:
             type: javascript
             expr: results.fetch.existing_tags
@@ -115,6 +72,15 @@ value:
           added_date:
             type: javascript
             expr: results.fetch.added_date
+          pre_selected_tag_names:
+            type: javascript
+            expr: results.fetch.pre_selected_tag_names
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
+          summarize_warnings:
+            type: javascript
+            expr: results.summarize.warnings
     - id: update
       summary: Update Paperless metadata
       value:
@@ -123,25 +89,22 @@ value:
         input_transforms:
           doc_id:
             type: javascript
-            expr: results.metadata.doc_id
+            expr: results.analyze.doc_id
           title:
             type: javascript
-            expr: results.metadata.title
+            expr: results.analyze.title
           selected_tags:
             type: javascript
-            expr: results.metadata.selected_tags
-          new_tags:
-            type: javascript
-            expr: results.metadata.new_tags
+            expr: results.analyze.selected_tags
           selected_correspondent:
             type: javascript
-            expr: results.metadata.selected_correspondent
-          new_correspondent:
-            type: javascript
-            expr: results.metadata.new_correspondent
+            expr: results.analyze.selected_correspondent
           existing_tags:
             type: javascript
             expr: results.fetch.existing_tags
+          current_tag_ids:
+            type: javascript
+            expr: results.fetch.current_metadata.tag_ids
           existing_correspondents:
             type: javascript
             expr: results.fetch.existing_correspondents
@@ -150,24 +113,15 @@ value:
             expr: results.fetch.existing_document_types
           selected_document_type:
             type: javascript
-            expr: results.classify.selected_document_type
-          new_document_type:
-            type: javascript
-            expr: results.classify.new_document_type
+            expr: results.analyze.selected_document_type
           document_date:
             type: javascript
-            expr: results.metadata.document_date
-          document_type_warnings:
-            type: javascript
-            expr: results.classify.document_type_warnings
+            expr: results.summarize.document_date
           warnings:
             type: javascript
-            expr: results.metadata.warnings
-          analysis:
-            type: javascript
-            expr: results.metadata.analysis
+            expr: results.analyze.warnings
     - id: chunk
-      summary: Build multi-level chunks
+      summary: LLM semantic chunking
       value:
         type: script
         path: f/paiperless/chunk_document
@@ -178,15 +132,21 @@ value:
           text:
             type: javascript
             expr: results.fetch.text
-          analysis:
+          summary:
             type: javascript
-            expr: results.classify
+            expr: results.summarize.summary
+          document_type_name:
+            type: javascript
+            expr: results.update.document_type_name
           correspondent_name:
             type: javascript
             expr: results.update.correspondent_name
           tag_names:
             type: javascript
             expr: results.update.tag_names
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
     - id: embed
       summary: Generate embeddings
       value:
@@ -205,6 +165,27 @@ value:
           embedded_chunks:
             type: javascript
             expr: results.embed.embedded_chunks
+    - id: status_tag
+      summary: Apply AI-Warning tag when processing had warnings
+      value:
+        type: script
+        path: f/paiperless/apply_status_tags
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          summarize_warnings:
+            type: javascript
+            expr: results.summarize.warnings
+          analyze_warnings:
+            type: javascript
+            expr: results.analyze.warnings
+          update_warnings:
+            type: javascript
+            expr: results.update.warnings
+          chunk_warnings:
+            type: javascript
+            expr: results.chunk.warnings
     - id: notify
       summary: Send warnings and status
       value:
@@ -228,7 +209,7 @@ value:
             expr: results.update.document_type_name
           warnings:
             type: javascript
-            expr: results.update.warnings
+            expr: results.status_tag.warnings
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object

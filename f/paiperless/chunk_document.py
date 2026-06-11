@@ -1,29 +1,61 @@
-import json
-
 from f.paiperless.shared.ollama_client import chat_json
-from f.paiperless.shared.prompts import SUMMARY
-from f.paiperless.shared.chunking import build_chunks
+from f.paiperless.shared.prompts import CHUNK_SCHEMA, build_chunk_prompt
+from f.paiperless.shared.text_utils import language_name, normalize_language, section_label, summary_label
 
 
-def main(doc_id: int, text: str, analysis: dict, correspondent_name: str | None = None, tag_names: list | None = None) -> dict:
-    summary_result = chat_json(
-        SUMMARY,
-        f"Analyse:\n{json.dumps(analysis, ensure_ascii=False)}\n\nDokument:\n{text[:12000]}",
+def main(
+    doc_id: int,
+    text: str,
+    summary: str = "",
+    document_type_name: str | None = None,
+    correspondent_name: str | None = None,
+    tag_names: list | None = None,
+    document_language: str = "de",
+) -> dict:
+    lang_code = normalize_language(document_language)
+    lang_label = language_name(lang_code)
+    doc_type = document_type_name or "Unbekannt"
+    user = (
+        f"Dokumentsprache (Paperless): {lang_code} ({lang_label})\n"
+        f"Dokumenttyp: {doc_type}\n\nText:\n{text}"
     )
-    summary = summary_result.get("summary", "")
+    result = chat_json(build_chunk_prompt(lang_label), user, format_schema=CHUNK_SCHEMA)
 
-    chunks = build_chunks(text=text, summary=summary, analysis=analysis)
+    warnings: list[str] = []
+    chunks: list[dict] = []
+
+    if summary.strip():
+        chunks.append({
+            "text": summary.strip(),
+            "chunk_kind": "summary",
+            "label": summary_label(lang_code),
+        })
+    else:
+        warnings.append("Keine Zusammenfassung vorhanden, Summary-Embedding entfällt")
+
+    for index, item in enumerate(result.get("chunks") or []):
+        chunk_text = (item.get("text") or "").strip()
+        if not chunk_text:
+            continue
+        label = (item.get("label") or section_label(lang_code, index)).strip()
+        chunks.append({
+            "text": chunk_text,
+            "chunk_kind": "chunk",
+            "label": label,
+        })
+
+    if not any(c["chunk_kind"] == "chunk" for c in chunks):
+        warnings.append("LLM hat keine Teil-Chunks geliefert")
+
     for chunk in chunks:
         chunk["doc_id"] = doc_id
         chunk["correspondent"] = correspondent_name
         chunk["tags"] = tag_names or []
-        chunk["doc_nature"] = analysis.get("doc_nature", "Unbekanntes Dokument")
+        chunk["document_type"] = doc_type
 
     return {
         "doc_id": doc_id,
-        "summary": summary,
         "chunks": chunks,
-        "analysis": analysis,
-        "correspondent_name": correspondent_name,
-        "tag_names": tag_names or [],
+        "chunk_count": len(chunks),
+        "warnings": warnings,
     }

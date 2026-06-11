@@ -1,5 +1,5 @@
 summary: Update Paperless document metadata
-description: Creates missing tags/correspondents and patches the document in Paperless.
+description: Patches document metadata in Paperless using only existing tags, correspondents and document types.
 lock: ''
 kind: script
 schema:
@@ -12,26 +12,29 @@ schema:
       type: string
     selected_tags:
       type: array
-    new_tags:
-      type: array
     selected_correspondent:
-      type: string
-      nullable: true
-    new_correspondent:
       type: string
       nullable: true
     existing_tags:
       type: array
+    current_tag_ids:
+      type: array
     existing_correspondents:
       type: array
+    existing_document_types:
+      type: array
+    selected_document_type:
+      type: string
+      nullable: true
+    document_date:
+      type: string
+      nullable: true
     warnings:
       type: array
-    analysis:
-      type: object
   required:
     - doc_id
     - title
     - selected_tags
-    - new_tags
     - existing_tags
     - existing_correspondents
+    - existing_document_types

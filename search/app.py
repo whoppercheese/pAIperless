@@ -145,7 +145,7 @@ async def search(
     query: str = Form(""),
     correspondent: str = Form(""),
     tag: str = Form(""),
-    chunk_level: str = Form(""),
+    chunk_kind: str = Form(""),
     limit: int = Form(20),
 ):
     query = query.strip()
@@ -159,8 +159,8 @@ async def search(
         filters["correspondent"] = correspondent
     if tag:
         filters["tags"] = tag
-    if chunk_level:
-        filters["chunk_level"] = chunk_level
+    if chunk_kind:
+        filters["chunk_kind"] = chunk_kind
 
     points = await _search_qdrant(vector, limit=limit, filters=filters)
 
@@ -168,17 +168,13 @@ async def search(
     for pt in points:
         payload = pt.get("payload", {})
         score = pt.get("score", 0.0)
-        importance = payload.get("importance", 1.0)
-        boosted = score * importance
         doc_id = payload.get("doc_id")
 
         chunk = {
             "score": score,
-            "boosted_score": round(boosted, 4),
             "text": payload.get("text", ""),
-            "chunk_type": payload.get("chunk_type", ""),
-            "chunk_level": payload.get("chunk_level", ""),
-            "importance": importance,
+            "chunk_kind": payload.get("chunk_kind", ""),
+            "label": payload.get("label", ""),
         }
 
         if doc_id not in docs:
@@ -186,25 +182,25 @@ async def search(
                 "doc_id": doc_id,
                 "correspondent": payload.get("correspondent", ""),
                 "tags": payload.get("tags", []),
-                "doc_nature": payload.get("doc_nature", ""),
+                "document_type": payload.get("document_type", ""),
                 "chunks": [],
-                "best_score": boosted,
-                "score_sum": boosted,
+                "best_score": score,
+                "score_sum": score,
                 "count": 0,
             }
 
         doc = docs[doc_id]
         doc["chunks"].append(chunk)
         doc["count"] += 1
-        doc["score_sum"] += boosted
-        if boosted > doc["best_score"]:
-            doc["best_score"] = boosted
+        doc["score_sum"] += score
+        if score > doc["best_score"]:
+            doc["best_score"] = score
 
     doc_titles = await _fetch_doc_titles([d for d in docs if d is not None])
 
     for doc in docs.values():
         doc["relevance"] = round(doc["best_score"] * 0.6 + (doc["score_sum"] / doc["count"]) * 0.4, 4)
-        doc["chunks"].sort(key=lambda c: c["boosted_score"], reverse=True)
+        doc["chunks"].sort(key=lambda c: c["score"], reverse=True)
         doc["title"] = doc_titles.get(doc["doc_id"], "")
 
     grouped = sorted(docs.values(), key=lambda d: d["relevance"], reverse=True)

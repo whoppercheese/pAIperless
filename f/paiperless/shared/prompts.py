@@ -1,155 +1,192 @@
-CLASSIFY = """\
-Du analysierst Dokumente fuer eine Dokumentenverwaltung.
+import json
 
-Analysiere den Text und antworte ausschliesslich als JSON mit folgenden Feldern:
-- doc_nature: kurze freie Beschreibung der Dokumentart (z.B. "Mobilfunkrechnung")
-- selected_document_type: Name des passenden Dokumenttyps aus der vorhandenen Liste, oder null
-- new_document_type: nur wenn KEIN vorhandener Typ passt: kurzer Name fuer neuen Typ, sonst null
-- document_type_warnings: Liste von Warnings, leer wenn vorhandener Typ gewaehlt wurde
-- key_sections: Liste der wichtigsten inhaltlichen Abschnitte
-- high_importance_signals: Woerter/Phrasen, die auf besonders wichtige Inhalte hinweisen (Header, Summen, IDs, Fristen)
-- low_importance_signals: Woerter/Phrasen, die auf unwichtigen Boilerplate-Inhalt hinweisen (AGB, Disclaimer, Datenschutz)
-- has_tables: boolean
-- language: ISO-Sprachcode, z.B. "de"
 
-Regeln fuer Dokumenttyp-Auswahl:
-- Bevorzuge IMMER vorhandene Dokumenttypen aus der Liste
-- Waehle den am besten passenden vorhandenen Typ, auch bei ungefaehrer Uebereinstimmung
-- Erstelle nur dann einen neuen Typ, wenn wirklich keiner passt
-- Neuer Typ: kurzer, allgemeiner Name (z.B. "Rechnung", nicht "Mobilfunkrechnung Dezember 2024")
-- Wenn ein neuer Typ noetig ist, fuege eine Warning hinzu, z.B. "Neuer Dokumenttyp vorgeschlagen: Rechnung"
-- "selected_document_type" und "new_document_type" duerfen niemals gleichzeitig gesetzt sein
+def build_summary_prompt(document_language: str) -> str:
+    lang = document_language
+    return f"""\
+Du erstellst eine Zusammenfassung eines Dokuments für eine Dokumentenverwaltung (Paperless-ngx).
+Die Dokumentsprache laut Paperless ist: {lang}.
+Antworte als JSON.
 
-Sei konkret und dokumentbezogen. Keine Erklaerungen ausserhalb des JSON."""
+SPRACHE (PFLICHT):
+- summary MUSS vollständig in der Dokumentsprache ({lang}) verfasst sein.
+- NIEMALS in einer anderen Sprache antworten — auch nicht teilweise.
+- Eigennamen, Firmennamen und Beträge unverändert übernehmen.
 
-TITLE = """\
-Erzeuge einen kurzen, aussagekraeftigen Dokumenttitel auf Deutsch.
+INHALT:
+Lies den gesamten Text und fasse ihn zusammen.
+- summary: ausführliche Zusammenfassung auf {lang}, typischerweise 6-12 Sätze
+- Enthalte zwingend: Zweck, Absender/Absendername, Dokumentart, alle genannten Daten (Rechnungs-, Brief-, Vertragsdatum etc.), Beträge, Fristen, Vertragsparteien, wichtige Konditionen
+- Keine Floskeln, keine Einleitung wie "Dieses Dokument..."
+- Die Summary muss alle Fakten enthalten, die später für Titel, Dokumenttyp, Korrespondent und Tags benötigt werden
+
+DATUM:
+Extrahiere das relevante Dokumentdatum direkt aus dem Volltext (nicht aus heutigem Datum raten).
+- document_date: YYYY-MM-DD oder null
+- Priorität: Rechnungsdatum > Briefdatum > Vertragsdatum > Auszugsdatum > andere im Dokument genannte Daten
+- Nur setzen wenn ein konkretes Datum im Text steht; bei mehreren Kandidaten das relevanteste nach Priorität wählen
+
+Antworte ausschließlich als JSON mit Feldern "summary" und "document_date". Keine Erklärungen außerhalb des JSON."""
+
+
+def build_analyze_prompt(
+    document_language: str,
+    document_types: list[str],
+    tags: list[str],
+    correspondents: list[str],
+    pre_selected_tags: list[str] | None = None,
+) -> str:
+    lang = document_language
+    types_json = json.dumps(document_types, ensure_ascii=False)
+    tags_json = json.dumps(tags, ensure_ascii=False)
+    correspondents_json = json.dumps(correspondents, ensure_ascii=False)
+    pre_selected = [t for t in (pre_selected_tags or []) if t.lower() != "eingang"]
+    pre_selected_block = (
+        f"VORGEWÄHLTE TAGS (von Paperless, bereits am Dokument — PFLICHT beibehalten):\n"
+        f"{json.dumps(pre_selected, ensure_ascii=False)}\n"
+        f"- Diese Tags wurden von Paperless bereits nach Regeln zugewiesen\n"
+        f"- ALLE VORGEWÄHLTE TAGS MÜSSEN in selected_tags enthalten sein\n"
+        f"- Entferne einen vorgewählten Tag NUR bei extremer, eindeutiger Fehlzuordnung "
+        f"(z.B. völlig falscher Absender, klar falsches Thema) — im Zweifel BEHALTEN\n"
+        f"- Du darfst zusätzliche passende Tags aus VORHANDENE TAGS ergänzen\n\n"
+        if pre_selected
+        else ""
+    )
+    return f"""\
+Du extrahierst Metadaten aus einer Dokumenten-Zusammenfassung für Paperless-ngx.
+Die Dokumentsprache laut Paperless ist: {lang}.
+Im User-Prompt erhältst du die Summary — nicht den Volltext.
+Arbeite die folgenden Schritte der Reihe nach ab und antworte als ein einziges JSON-Objekt.
+
+SPRACHE (PFLICHT):
+- title MUSS vollständig in der Dokumentsprache ({lang}) verfasst sein.
+- NIEMALS in einer anderen Sprache antworten — auch nicht teilweise.
+- Eigennamen, Firmennamen und Beträge unverändert übernehmen.
+
+VORHANDENE DOKUMENTTYPEN (NUR diese exakten Namen verwenden):
+{types_json}
+
+VORHANDENE KORRESPONDENTEN (NUR diese exakten Namen verwenden):
+{correspondents_json}
+
+VORHANDENE TAGS (NUR diese exakten Namen verwenden):
+{tags_json}
+
+{pre_selected_block}SCHRITT 1: TITEL
+Leite aus der Summary einen Titel ab.
+- title: kurzer Titel auf {lang}, 3-12 Wörter (Wortgrenzen einhalten, niemals mitten im Wort abbrechen).
+  Enthalte Absender (Kurzname), Dokumentart und Datum/Zeitraum.
+  Keine Rechnungsnummern, vollständigen Firmennamen oder Adressen.
+
+SCHRITT 2: DOKUMENTTYP
+Ordne das Dokument einem Typ aus der obigen Liste zu.
+- selected_document_type: exakter Name aus VORHANDENE DOKUMENTTYPEN, oder null wenn keiner passt
+Regeln:
+- NUR Namen aus VORHANDENE DOKUMENTTYPEN verwenden, NIEMALS neue Typen erfinden oder vorschlagen
+- Bevorzuge vorhandene Typen auch bei ungefährer Übereinstimmung
+- Rechtsformen, Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
+
+SCHRITT 3: KORRESPONDENT
+Bestimme den Absender aus der obigen Korrespondenten-Liste.
+- selected_correspondent: exakter Name aus VORHANDENE KORRESPONDENTEN, oder null wenn keiner passt
+Regeln:
+- NUR Namen aus VORHANDENE KORRESPONDENTEN verwenden, NIEMALS neue Korrespondenten erfinden oder vorschlagen
+- Bevorzuge vorhandene Korrespondenten auch bei ungefährer Übereinstimmung
+- Rechtsformen (GmbH, AG etc.), Titel (Dr., Prof.), Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
+
+SCHRITT 4: TAGS
+Wähle passende Tags aus der obigen Tag-Liste.
+- selected_tags: Liste, NUR exakte Namen aus VORHANDENE TAGS
+Regeln:
+- NUR Namen aus VORHANDENE TAGS verwenden, NIEMALS neue Tags erfinden oder vorschlagen
+- Wenn VORGEWÄHLTE TAGS existieren: diese IMMER in selected_tags aufnehmen; nur bei extremer Sicherheit einen einzelnen weglassen
+- Im Zweifel lieber einen vorgewählten Tag behalten als fälschlich entfernen
+- Ergänze bei Bedarf weitere passende Tags aus VORHANDENE TAGS (typisch 1-5 zusätzlich, keine Obergrenze wenn vorgewählt)
+- Ohne VORGEWÄHLTE TAGS: 1-5 Tags wählen; leere Liste nur wenn wirklich kein vorhandener Tag passt
+- NIEMALS den Tag "Eingang" in selected_tags aufnehmen
+- Keine redundanten Tags (nicht mehrere für dasselbe Konzept)
+- Vorhandene Personen-Tags wählen wenn Person im Dokument vorkommt
+- Keine zu generischen ("Dokument") oder zu spezifischen ("Rechnung-2024-März") Tags
+
+SCHRITT 5: WARNINGS
+Sammle alle Warnings in einer einzigen Liste.
+- warnings: Liste von Warn-Strings, leer wenn keine nötig
+Erzeuge eine Warning für JEDE der folgenden Situationen:
+- selected_document_type ist null: "Kein passender Dokumenttyp gefunden"
+- selected_correspondent ist null: "Kein passender Korrespondent gefunden"
+- selected_tags ist leer UND es gibt keine VORGEWÄHLTE TAGS: "Keine passenden Tags gefunden"
+
+JSON-AUSGABEFORMAT - verwende exakt diese Top-Level-Feldnamen (keine verschachtelten Schritte):
+title, selected_document_type, selected_correspondent, selected_tags, warnings
+
+Antworte ausschließlich als JSON mit diesen Feldern. Keine Erklärungen außerhalb des JSON."""
+
+
+def build_chunk_prompt(document_language: str) -> str:
+    lang = document_language
+    return f"""\
+Du teilst den Volltext eines Dokuments in semantische Such-Chunks auf.
+Die Dokumentsprache laut Paperless ist: {lang}.
+Antworte als JSON.
 
 Regeln:
-- bevorzuge einen im Dokument vorhandenen Titel oder Betreff, sofern aussagekraeftig
-- kurz und aussagekraeftig, typischerweise 3-8 Woerter
-- maximal 60 Zeichen
-- enthalte wenn moeglich Absender, Dokumentart und relevantes Datum/Zeitraum
-- kein Dateiname, keine Anfuehrungszeichen
+- chunks: Liste von Abschnitten mit "text" und "label"
+- text: vollständiger Abschnittstext aus dem Dokument (keine Kürzung, keine Auslassungen mit "...")
+- label: kurze Beschreibung auf {lang} (2-6 Wörter), z.B. Rechnungspositionen, Kündigungsfrist
+- Bevorzuge wenige, größere Chunks statt vieler kleiner — zusammengehörige Inhalte in einem Chunk belassen
+- Teile nur bei klar getrennten Themen (z.B. Vertragskern vs. Anlagen, Rechnungskopf vs. AGB)
+- Kleine Absätze, Einleitungen oder Detailblöcke nicht einzeln abtrennen, wenn sie zum gleichen Thema gehören
+- Tabellen und zugehörige Erläuterungen zusammen in einem Chunk belassen
+- Teile nach inhaltlicher Logik, nicht nach Zeichen-, Token- oder Seitengrenzen
+- Jeder Chunk soll für sich in einer Vektorsuche sinnvoll und ausreichend substanziell sein
+- Keine Überschneidungen zwischen Chunks
+- Zusammen sollen die Chunks den relevanten Dokumentinhalt abdecken
+- Boilerplate (AGB, Datenschutz, Impressum) in einen Chunk bündeln
+- Erzeuge KEINE Zusammenfassung — die wird separat gespeichert
+- Mindestens 1 Chunk; kurze Dokumente oft in 1 Chunk, längere typischerweise in 2-5 Chunks (nur mehr wenn klar getrennte Hauptthemen)
 
-Einbeziehen:
-- Jahreszahlen und Zeitraeume sofern relevant (z.B. "2024", "Januar 2025")
-- Absender/Empfaenger als Kurzname (z.B. "Telekom", nicht "Deutsche Telekom GmbH")
-- Dokumentart (z.B. "Rechnung", "Vertrag", "Kuendigung")
+Antworte ausschließlich als JSON mit Feld "chunks"."""
 
-Vermeiden:
-- Rechnungsnummern, Vertragsnummern, Bestellnummern, Referenznummern
-- vollstaendige Firmennamen oder Rechtsformen
-- Adressen
 
-Beispiele guter Titel:
-- "Telekom Rechnung Juni 2024"
-- "Arbeitsvertrag Max Mustermann"
-- "HUK Kfz-Versicherung 2025"
-- "Kuendigung Fitnessstudio Maerz 2024"
+SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "document_date": {"type": ["string", "null"]},
+    },
+    "required": ["summary"],
+}
 
-Extrahiere ausserdem das Dokumentdatum:
-- Format: YYYY-MM-DD
-- Prioritaet: Rechnungsdatum > Briefdatum > Auszugsdatum > andere Daten
-- Bei Mehrdeutigkeit das primaere/prominenteste Datum verwenden
-- Falls kein Datum erkennbar: null
+ANALYZE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "selected_document_type": {"type": ["string", "null"]},
+        "selected_correspondent": {"type": ["string", "null"]},
+        "selected_tags": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "title",
+        "selected_tags",
+        "warnings",
+    ],
+}
 
-Antworte nur als JSON: {"title": "...", "document_date": "YYYY-MM-DD oder null"}"""
-
-TAGS = """\
-Waehle passende Tags fuer ein Dokument.
-
-KRITISCHE REGEL fuer selected_tags vs new_tags:
-- "selected_tags" darf NUR Namen enthalten, die EXAKT in der vorhandenen Tag-Liste stehen
-- Wenn ein Tag NICHT in der Liste steht, gehoert er in "new_tags", NIEMALS in "selected_tags"
-- Fuer JEDEN Eintrag in "new_tags" MUSS eine Warning erzeugt werden
-
-Vorgehen:
-- Pruefe zuerst die vorhandene Tag-Liste
-- Bevorzuge IMMER bestehende Tags gegenueber neuen
-- Waehle 1-3 Tags, die das Dokument thematisch kategorisieren (Thema, Zweck, Status)
-- Maximal 1 neuer Tag pro Dokument, und nur wenn wirklich kein vorhandener passt UND das Konzept breit wiederverwendbar ist
-
-Anti-Redundanz:
-- NIEMALS mehrere Tags waehlen, die dasselbe Konzept abdecken
-- Waehle den EINEN treffendsten Tag, nicht mehrere Varianten
-- Schlecht: ["Rueckerstattung", "Beitragsrueckerstattung", "Pauschalerstattung"] - das ist 3x dasselbe Konzept
-- Gut: ["Rueckerstattung"] - ein Tag reicht
-
-Personen-Tags:
-- Wenn ein vorhandener Tag einem Personennamen entspricht und diese Person im Dokument vorkommt (als Empfaenger, Versicherungsnehmer, Vertragspartner o.ae.), waehle diesen Tag
-- Erstelle KEINE neuen Personen-Tags, dafuer gibt es Korrespondenten
-
-Vermeiden:
-- zu generische Tags (z.B. "Dokument", "Datei", "Sonstiges")
-- zu spezifische Tags (z.B. "Rechnung-2024-Maerz", "Telekom-Vertrag-123")
-- Orte als Tags
-
-Ausgabe nur als JSON:
-  {
-    "selected_tags": ["nur Tags die EXAKT in der Liste stehen"],
-    "new_tags": ["nur Tags die NICHT in der Liste stehen"],
-    "warnings": ["Neuer Tag vorgeschlagen: xyz"]
-  }
-
-Wenn keine neuen Tags noetig: "new_tags": [], "warnings": []
-Fuer JEDEN neuen Tag eine Warning: "Neuer Tag vorgeschlagen: xyz"."""
-
-CORRESPONDENT = """\
-Waehle den passenden Korrespondenten fuer ein Dokument.
-
-Vorgehen:
-- MUSS zuerst die vorhandene Korrespondentenliste pruefen
-- Verwende primär den Absender des Dokuments zur Zuordnung (falls vorhanden)
-- Falls kein Absender erkennbar ist, nutze den eindeutigsten Organisations- oder Personennamen im Dokument
-
-Matching-Regeln:
-- Bevorzuge immer vorhandene Korrespondenten aus der Liste
-- Ordne einem bestehenden Korrespondenten zu, wenn der Absender dieselbe Entitaet ist (auch bei leichten Namensvariationen)
-- Im Zweifel bestehenden Korrespondenten bevorzugen statt einen neuen anzulegen
-- Erstelle nur dann einen neuen Korrespondenten, wenn wirklich keine passende Uebereinstimmung existiert
-
-Normalisierung (fuer Vergleich):
-- Rechtsformen sind irrelevant (z. B. GmbH, AG, KG, e.K., Ltd., Inc., LLC, SARL usw.)
-- Titel bei Personen sind irrelevant (z. B. Dr., Prof., Dipl.-Ing.)
-- Gross-/Kleinschreibung ist irrelevant
-- Satzzeichen sind irrelevant
-- Umlaute und ae/oe/ue gelten als gleichwertig
-- leichte Namensvarianten gelten als identisch
-- Verwende den kuerzesten klar erkennbaren Namen
-- Verwende bevorzugt Marken-/Konzern-/Bekanntnamen statt juristischen Einheiten
-- KEINE Adressen, nur der Name
-
-Anti-Duplikat-Regel:
-- Niemals einen neuen Korrespondenten erzeugen, wenn ein vorhandener Korrespondent offensichtlich dieselbe Entitaet darstellt
-
-Ausgabe-Regeln:
-- Wenn eine passende Entitaet in der Liste existiert:
-  {
-    "selected_correspondent": "Name",
-    "new_correspondent": null,
-    "warnings": []
-  }
-
-- Wenn KEINE passende Entitaet existiert:
-  {
-    "selected_correspondent": null,
-    "new_correspondent": "Kurzer Name",
-    "warnings": ["Keine passende Entitaet in der vorhandenen Liste gefunden"]
-  }
-
-Zusatzregeln:
-- "selected_correspondent" und "new_correspondent" duerfen niemals gleichzeitig gesetzt sein
-- Genau eines der beiden Felder muss einen Wert enthalten
-- "warnings" ist leer, ausser es wird ein neuer Korrespondent erstellt
-- Bei Unsicherheit: waehle den wahrscheinlichsten bestehenden Korrespondenten und fuege eine Warning hinzu.
-"""
-
-SUMMARY = """\
-Erstelle eine kurze, praegnante Zusammenfassung des Dokuments auf Deutsch.
-
-Regeln:
-- 2-4 Saetze
-- fokussiere auf Zweck, Absender, wichtigste Fakten und Betraege/Fristen
-- keine Floskeln
-- antworte nur als JSON: {"summary": "..."}"""
+CHUNK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "chunks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "label": {"type": "string"},
+                },
+                "required": ["text", "label"],
+            },
+        },
+    },
+    "required": ["chunks"],
+}
