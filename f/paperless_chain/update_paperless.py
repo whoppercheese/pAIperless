@@ -1,5 +1,10 @@
 from f.paperless_chain.shared.paperless_client import patch
-from f.paperless_chain.shared.text_utils import FLOW_PROCESSED_TAG, is_system_tag, limit_words
+from f.paperless_chain.shared.text_utils import (
+    FLOW_PROCESSED_TAG,
+    content_tag_names,
+    is_system_tag,
+    limit_words,
+)
 
 
 def _append_tag(
@@ -17,6 +22,33 @@ def _append_tag(
     return True
 
 
+def _content_tag_names_from_ids(tag_ids: list[int], tag_id_to_name: dict[int, str]) -> list[str]:
+    return content_tag_names(
+        tag_id_to_name[tag_id]
+        for tag_id in tag_ids
+        if tag_id in tag_id_to_name
+    )
+
+
+def _collect_metadata_warnings(
+    *,
+    final_title: str,
+    final_document_type_name: str | None,
+    final_correspondent_name: str | None,
+    final_content_tag_names: list[str],
+) -> list[str]:
+    warnings: list[str] = []
+    if not final_title:
+        warnings.append("Kein Titel verfügbar")
+    if not final_document_type_name:
+        warnings.append("Kein passender Dokumenttyp gefunden")
+    if not final_correspondent_name:
+        warnings.append("Kein passender Korrespondent gefunden")
+    if not final_content_tag_names:
+        warnings.append("Keine passenden Tags gefunden")
+    return warnings
+
+
 def main(
     doc_id: int,
     title: str,
@@ -28,13 +60,18 @@ def main(
     current_tag_ids: list | None = None,
     selected_document_type: str | None = None,
     document_date: str | None = None,
-    warnings: list | None = None,
+    current_title: str | None = None,
+    current_correspondent_id: int | None = None,
+    current_document_type_id: int | None = None,
+    summarize_warnings: list | None = None,
 ) -> dict:
     tag_name_to_id = {t["name"].lower(): t["id"] for t in existing_tags}
     tag_id_to_name = {t["id"]: t["name"] for t in existing_tags}
     corr_name_to_id = {c["name"].lower(): c["id"] for c in existing_correspondents}
+    corr_id_to_name = {c["id"]: c["name"] for c in existing_correspondents}
     dtype_name_to_id = {d["name"].lower(): d["id"] for d in existing_document_types}
-    collected_warnings = list(warnings or [])
+    dtype_id_to_name = {d["id"]: d["name"] for d in existing_document_types}
+    collected_warnings = list(summarize_warnings or [])
     current_ids = list(current_tag_ids or [])
 
     tag_ids: list[int] = []
@@ -78,14 +115,37 @@ def main(
     cleaned_title = limit_words(title.strip())
     if cleaned_title:
         update_payload["title"] = cleaned_title
+    tags_updated = False
     if set(tag_ids) != set(current_ids):
         update_payload["tags"] = list(dict.fromkeys(tag_ids))
+        tags_updated = True
     if correspondent_id is not None:
         update_payload["correspondent"] = correspondent_id
     if document_type_id is not None:
         update_payload["document_type"] = document_type_id
     if document_date:
         update_payload["created_date"] = document_date
+
+    final_title = cleaned_title or (current_title or "").strip()
+    final_document_type_name = document_type_name
+    if not final_document_type_name and current_document_type_id:
+        final_document_type_name = dtype_id_to_name.get(current_document_type_id)
+    final_correspondent_name = correspondent_name
+    if not final_correspondent_name and current_correspondent_id:
+        final_correspondent_name = corr_id_to_name.get(current_correspondent_id)
+    if tags_updated:
+        final_content_tag_names = content_tag_names(applied_tag_names)
+    else:
+        final_content_tag_names = _content_tag_names_from_ids(current_ids, tag_id_to_name)
+
+    collected_warnings.extend(
+        _collect_metadata_warnings(
+            final_title=final_title,
+            final_document_type_name=final_document_type_name,
+            final_correspondent_name=final_correspondent_name,
+            final_content_tag_names=final_content_tag_names,
+        )
+    )
 
     if not update_payload:
         collected_warnings.append("Keine Metadaten-Änderungen, Paperless-Update übersprungen")
@@ -94,10 +154,10 @@ def main(
         print("reason: Keine Metadaten-Änderungen")
         return {
             "doc_id": doc_id,
-            "title": cleaned_title,
-            "tag_names": applied_tag_names,
-            "correspondent_name": correspondent_name,
-            "document_type_name": document_type_name,
+            "title": final_title,
+            "tag_names": final_content_tag_names,
+            "correspondent_name": final_correspondent_name,
+            "document_type_name": final_document_type_name,
             "warnings": collected_warnings,
             "paperless_document": None,
             "skipped": True,
@@ -107,10 +167,10 @@ def main(
 
     return {
         "doc_id": doc_id,
-        "title": title,
-        "tag_names": applied_tag_names,
-        "correspondent_name": correspondent_name,
-        "document_type_name": document_type_name,
+        "title": final_title,
+        "tag_names": final_content_tag_names,
+        "correspondent_name": final_correspondent_name,
+        "document_type_name": final_document_type_name,
         "warnings": collected_warnings,
         "paperless_document": updated,
     }

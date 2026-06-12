@@ -25,12 +25,12 @@ schema:
     current_correspondent_id:
       type: integer
       nullable: true
+    current_document_type_id:
+      type: integer
+      nullable: true
     document_language:
       type: string
       default: de
-    summarize_warnings:
-      type: array
-      nullable: true
   required:
     - doc_id
     - summary

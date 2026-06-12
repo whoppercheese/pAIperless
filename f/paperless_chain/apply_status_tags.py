@@ -17,14 +17,10 @@ def _dedupe_warnings(*warning_lists: list | None) -> list[str]:
 
 def main(
     doc_id: int,
-    summarize_warnings: list | None = None,
-    analyze_warnings: list | None = None,
     update_warnings: list | None = None,
     chunk_warnings: list | None = None,
 ) -> dict:
     warnings = _dedupe_warnings(
-        summarize_warnings,
-        analyze_warnings,
         update_warnings,
         chunk_warnings,
     )

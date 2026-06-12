@@ -29,8 +29,18 @@ schema:
     document_date:
       type: string
       nullable: true
-    warnings:
+    current_title:
+      type: string
+      nullable: true
+    current_correspondent_id:
+      type: integer
+      nullable: true
+    current_document_type_id:
+      type: integer
+      nullable: true
+    summarize_warnings:
       type: array
+      nullable: true
   required:
     - doc_id
     - title

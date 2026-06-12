@@ -93,12 +93,12 @@ value:
           current_correspondent_id:
             type: javascript
             expr: results.fetch.current_metadata.correspondent
+          current_document_type_id:
+            type: javascript
+            expr: results.fetch.current_metadata.document_type
           document_language:
             type: javascript
             expr: results.fetch.document_language
-          summarize_warnings:
-            type: javascript
-            expr: results.summarize.warnings
     - id: update
       summary: Update Paperless metadata
       value:
@@ -135,9 +135,18 @@ value:
           document_date:
             type: javascript
             expr: results.summarize.document_date
-          warnings:
+          current_title:
             type: javascript
-            expr: results.analyze.warnings
+            expr: results.fetch.current_metadata.title
+          current_correspondent_id:
+            type: javascript
+            expr: results.fetch.current_metadata.correspondent
+          current_document_type_id:
+            type: javascript
+            expr: results.fetch.current_metadata.document_type
+          summarize_warnings:
+            type: javascript
+            expr: results.summarize.warnings
     - id: chunk
       summary: LLM semantic chunking
       retry:
@@ -198,12 +207,6 @@ value:
           doc_id:
             type: javascript
             expr: results.fetch.doc_id
-          summarize_warnings:
-            type: javascript
-            expr: results.summarize.warnings
-          analyze_warnings:
-            type: javascript
-            expr: results.analyze.warnings
           update_warnings:
             type: javascript
             expr: results.update.warnings

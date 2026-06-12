@@ -28,12 +28,13 @@ def main(
     added_date: str = "",
     current_tag_names: list | None = None,
     current_correspondent_id: int | None = None,
+    current_document_type_id: int | None = None,
     document_language: str = "de",
-    summarize_warnings: list | None = None,
 ) -> dict:
     lang_code = normalize_language(document_language)
     lang_label = language_name(lang_code)
     type_name_to_canonical = {d["name"].lower(): d["name"] for d in existing_document_types}
+    type_id_to_name = {d["id"]: d["name"] for d in existing_document_types}
     tag_name_to_canonical = {t["name"].lower(): t["name"] for t in existing_tags}
     corr_name_to_canonical = {c["name"].lower(): c["name"] for c in existing_correspondents}
     corr_id_to_name = {c["id"]: c["name"] for c in existing_correspondents}
@@ -61,10 +62,6 @@ def main(
 
     title = limit_words((result.get("title") or "").strip())
 
-    warnings: list[str] = list(summarize_warnings or [])
-    if not summary.strip():
-        warnings.append("Keine Zusammenfassung vorhanden, Metadaten-Extraktion eingeschränkt")
-
     raw_tags = list(result.get("selected_tags") or [])
     selected_tags: list[str] = []
     for name in raw_tags:
@@ -73,27 +70,16 @@ def main(
         canonical = _resolve_existing_name(name, tag_name_to_canonical)
         if canonical and canonical not in selected_tags:
             selected_tags.append(canonical)
-    if not selected_tags and not current_tags:
-        warnings.append("Keine passenden Tags gefunden")
 
     raw_document_type = result.get("selected_document_type")
     selected_document_type = _resolve_existing_name(raw_document_type, type_name_to_canonical)
-    if not selected_document_type:
-        warnings.append("Kein passender Dokumenttyp gefunden")
+    if not selected_document_type and current_document_type_id:
+        selected_document_type = type_id_to_name.get(current_document_type_id)
 
     raw_correspondent = result.get("selected_correspondent")
     selected_correspondent = _resolve_existing_name(raw_correspondent, corr_name_to_canonical)
     if not selected_correspondent and current_correspondent_id:
         selected_correspondent = corr_id_to_name.get(current_correspondent_id)
-        if selected_correspondent:
-            warnings.append(
-                "Kein passender Korrespondent gefunden, Paperless-Vorschlag übernommen"
-            )
-    if not selected_correspondent:
-        warnings.append("Kein passender Korrespondent gefunden")
-
-    if not title:
-        warnings.append("LLM hat keinen Titel geliefert, Paperless-Titel bleibt unverändert")
 
     return {
         "doc_id": doc_id,
@@ -101,5 +87,4 @@ def main(
         "selected_tags": selected_tags,
         "selected_correspondent": selected_correspondent,
         "selected_document_type": selected_document_type,
-        "warnings": warnings,
     }

@@ -1,5 +1,5 @@
 summary: Apply AI-Warning tag when processing had warnings
-description: Merges warnings from all pipeline steps and tags the document with AI-Warning in Paperless.
+description: Merges warnings from update and chunk steps and tags the document with AI-Warning in Paperless.
 lock: ''
 kind: script
 schema:
@@ -8,12 +8,6 @@ schema:
   properties:
     doc_id:
       type: integer
-    summarize_warnings:
-      type: array
-      nullable: true
-    analyze_warnings:
-      type: array
-      nullable: true
     update_warnings:
       type: array
       nullable: true

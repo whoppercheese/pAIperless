@@ -140,12 +140,7 @@ Regeln:
 - Keine zu generischen ("Dokument") oder zu spezifischen ("Rechnung-2024-März") Tags
 
 SCHRITT 5: WARNINGS
-Sammle alle Warnings in einer einzigen Liste.
-- warnings: Liste von Warn-Strings, leer wenn keine nötig
-Erzeuge eine Warning für JEDE der folgenden Situationen:
-- selected_document_type ist null: "Kein passender Dokumenttyp gefunden"
-- selected_correspondent ist null: "Kein passender Korrespondent gefunden"
-- selected_tags ist leer UND es gibt keine passenden AKTUELLE TAGS: "Keine passenden Tags gefunden"
+- warnings: immer eine leere Liste [] zurückgeben (Warnings werden serverseitig gesetzt)
 
 JSON-AUSGABEFORMAT - verwende exakt diese Top-Level-Feldnamen (keine verschachtelten Schritte):
 title, selected_document_type, selected_correspondent, selected_tags, warnings
