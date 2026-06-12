@@ -1,5 +1,5 @@
 summary: Windmill flow trigger helpers
-description: Runs process_document flow asynchronously via wmill or HTTP fallback.
+description: Runs process_document and embed_document flows asynchronously via wmill or HTTP fallback.
 lock: ''
 kind: script
 schema:

@@ -40,8 +40,14 @@ SECTION_LABELS: dict[str, str] = {
 
 DEFAULT_TITLE_MAX_WORDS = 12
 
-SYSTEM_TAG_NAMES: frozenset[str] = frozenset({"ai-warning", "ai-error", "ai-processed"})
+SYSTEM_TAG_NAMES: frozenset[str] = frozenset({
+    "ai-warning",
+    "ai-error",
+    "ai-processed",
+    "ai-embedded",
+})
 FLOW_PROCESSED_TAG = "AI-Processed"
+EMBEDDED_TAG = "AI-Embedded"
 
 
 def is_system_tag(name: str | None) -> bool:

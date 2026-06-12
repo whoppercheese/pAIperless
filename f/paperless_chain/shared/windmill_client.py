@@ -4,6 +4,7 @@ import os
 import httpx
 
 PROCESS_DOCUMENT_FLOW = "f/paperless_chain/process_document"
+EMBED_DOCUMENT_FLOW = "f/paperless_chain/embed_document"
 
 
 def _resolve_windmill_credentials() -> tuple[str | None, str | None, str | None]:
@@ -18,20 +19,27 @@ def _resolve_windmill_credentials() -> tuple[str | None, str | None, str | None]
     return base, workspace, token
 
 
-def run_process_document_async(doc_id: int) -> str:
-    """Queue process_document flow for a Paperless doc_id. Returns Windmill job id."""
+def _run_flow_async(flow_path: str, args: dict) -> str:
+    """Queue a Windmill flow. Returns Windmill job id."""
     try:
         import wmill
 
-        return wmill.run_flow_async(
-            PROCESS_DOCUMENT_FLOW,
-            args={"doc_id": doc_id},
-        )
+        return wmill.run_flow_async(flow_path, args=args)
     except ImportError:
-        return _run_process_document_http(doc_id)
+        return _run_flow_http(flow_path, args)
 
 
-def _run_process_document_http(doc_id: int) -> str:
+def run_process_document_async(doc_id: int) -> str:
+    """Queue process_document flow for a Paperless doc_id. Returns Windmill job id."""
+    return _run_flow_async(PROCESS_DOCUMENT_FLOW, {"doc_id": doc_id})
+
+
+def run_embed_document_async(doc_id: int) -> str:
+    """Queue embed_document flow for a Paperless doc_id. Returns Windmill job id."""
+    return _run_flow_async(EMBED_DOCUMENT_FLOW, {"doc_id": doc_id})
+
+
+def _run_flow_http(flow_path: str, args: dict) -> str:
     base, workspace, token = _resolve_windmill_credentials()
     missing = [
         name
@@ -52,7 +60,7 @@ def _run_process_document_http(doc_id: int) -> str:
         )
 
     # wmill client uses /jobs/run/f/{path}; path already includes the f/ prefix.
-    url = f"{base.rstrip('/')}/api/w/{workspace}/jobs/run/f/{PROCESS_DOCUMENT_FLOW}"
+    url = f"{base.rstrip('/')}/api/w/{workspace}/jobs/run/f/{flow_path}"
     with httpx.Client(timeout=60.0) as client:
         response = client.post(
             url,
@@ -60,7 +68,7 @@ def _run_process_document_http(doc_id: int) -> str:
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
-            json={"doc_id": doc_id},
+            json=args,
         )
         response.raise_for_status()
         body = response.text.strip()

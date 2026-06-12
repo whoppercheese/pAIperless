@@ -1,0 +1,123 @@
+summary: Embed Paperless document in Qdrant
+description: >-
+  Fetches document text and existing metadata from Paperless, generates summary
+  and semantic chunks via LLM, embeds with bge-m3 and stores in Qdrant. Does not
+  modify title, tags, correspondent or document type.
+value:
+  same_worker: true
+  failure_module:
+    id: failure
+    summary: Notify on flow error and tag AI-Error
+    value:
+      type: script
+      path: f/paperless_chain/handle_flow_failure
+      input_transforms:
+        error:
+          type: javascript
+          expr: "previous_result.error ?? previous_result"
+        doc_id:
+          type: javascript
+          expr: flow_input.doc_id
+  modules:
+    - id: fetch
+      summary: Fetch document from Paperless
+      value:
+        type: script
+        path: f/paperless_chain/fetch_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: flow_input.doc_id
+    - id: summarize
+      summary: Summarize document for summary embedding
+      retry:
+        constant:
+          attempts: 2
+          seconds: 5
+        retry_if:
+          expr: "(result?.error?.message || '').includes('Could not parse JSON')"
+      value:
+        type: script
+        path: f/paperless_chain/summarize_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          text:
+            type: javascript
+            expr: results.fetch.text
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
+          added_date:
+            type: javascript
+            expr: results.fetch.added_date
+    - id: chunk
+      summary: LLM semantic chunking
+      retry:
+        constant:
+          attempts: 2
+          seconds: 5
+        retry_if:
+          expr: "(result?.error?.message || '').includes('Could not parse JSON')"
+      value:
+        type: script
+        path: f/paperless_chain/chunk_document
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          text:
+            type: javascript
+            expr: results.fetch.text
+          summary:
+            type: javascript
+            expr: results.summarize.summary
+          document_type_name:
+            type: javascript
+            expr: results.fetch.document_type_name
+          correspondent_name:
+            type: javascript
+            expr: results.fetch.correspondent_name
+          tag_names:
+            type: javascript
+            expr: results.fetch.tag_names
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
+    - id: embed
+      summary: Generate embeddings
+      value:
+        type: script
+        path: f/paperless_chain/generate_embeddings
+        input_transforms:
+          chunks:
+            type: javascript
+            expr: results.chunk.chunks
+    - id: store
+      summary: Store vectors in Qdrant
+      value:
+        type: script
+        path: f/paperless_chain/store_qdrant
+        input_transforms:
+          embedded_chunks:
+            type: javascript
+            expr: results.embed.embedded_chunks
+    - id: embedded_tag
+      summary: Mark document as embedded in Paperless
+      value:
+        type: script
+        path: f/paperless_chain/apply_embedded_tag
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+      description: Paperless document ID
+  required:
+    - doc_id

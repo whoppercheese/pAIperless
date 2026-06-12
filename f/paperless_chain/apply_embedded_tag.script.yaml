@@ -1,0 +1,13 @@
+summary: Apply AI-Embedded tag after successful embedding
+description: Marks a document as embedded in Qdrant by adding the AI-Embedded system tag in Paperless.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+      description: Paperless document ID
+  required:
+    - doc_id
