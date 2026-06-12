@@ -1,0 +1,21 @@
+summary: Derive title from document summary
+description: Fast LLM call to derive the document title from the summary.
+lock: ''
+kind: script
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  properties:
+    doc_id:
+      type: integer
+    summary:
+      type: string
+    added_date:
+      type: string
+      default: ''
+    document_language:
+      type: string
+      default: de
+  required:
+    - doc_id
+    - summary

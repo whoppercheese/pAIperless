@@ -32,9 +32,11 @@ flowchart LR
 | Preprocessor | `preprocess_webhook` | Parst `doc_url` aus dem Paperless-Webhook → `doc_id` |
 | fetch | `fetch_document` | OCR-Text, Sprache, bestehende Tags/Typen/Korrespondenten aus Paperless |
 | summarize | `summarize_document` | **LLM-Call 1:** Summary + `document_date` aus Volltext (Fallback: Paperless-Hinzufügedatum) |
-| analyze | `analyze_document` | **LLM-Call 2:** Titel, Typ, Korrespondent, Tags aus Summary (schnell) |
+| derive_title | `derive_title` | **LLM-Call 2:** Titel aus Summary |
+| resolve_document_type | `resolve_document_type` | **LLM-Call 3:** Dokumenttyp (nur wenn nicht in Paperless gesetzt) |
+| resolve_correspondent | `resolve_correspondent` | **LLM-Call 4:** Korrespondent (nur wenn nicht in Paperless gesetzt) |
 | update | `update_paperless` | PATCH an Paperless; setzt Inhalts-Tags nach LLM + immer `AI-Processed` |
-| chunk | `chunk_document` | **LLM-Call 3:** semantische Chunks aus Volltext + Summary-Chunk fürs Embedding |
+| chunk | `chunk_document` | **LLM-Call 5:** semantische Chunks aus Volltext + Summary-Chunk fürs Embedding |
 | embed | `generate_embeddings` | Vektoren via Ollama/bge-m3 |
 | store | `store_qdrant` | Upsert in Qdrant |
 | status_tag | `apply_status_tags` | Tag **AI-Warning**, wenn irgendwo Warnings auftraten |
@@ -47,7 +49,7 @@ Paperless-Workflow-Trigger: **Document Added** (nach OCR und automatischem Match
 ## Features
 
 - **Trigger**: Paperless-ngx Webhook bei neuem Dokument (`Document Added`)
-- **Drei LLM-Calls**: Summary+Datum (Volltext), Metadaten (Summary), Chunking (Volltext)
+- **LLM-Calls**: Summary+Datum (Volltext), Titel/Dokumenttyp/Korrespondent (Summary), Chunking (Volltext)
 - **Metadaten**: Titel, Tags, Korrespondent, Dokumenttyp, `created_date` — nur aus bestehenden Paperless-Listen
 - **Tag-Bereinigung**: bestehende Inhalts-Tags werden vom LLM geprüft; unpassende können entfernt, passende ergänzt werden
 - **System-Tags**: `AI-Warning`, `AI-Error`, `AI-Processed` werden vom LLM ignoriert; `AI-Processed` setzt der Flow bei jedem Update
@@ -300,7 +302,9 @@ f/paperless_chain/
 ├── preprocess_webhook.py      # Webhook-Preprocessor (doc_url → doc_id)
 ├── fetch_document.py
 ├── summarize_document.py      # LLM: Summary + document_date
-├── analyze_document.py        # LLM: Titel, Typ, Korrespondent, Tags
+├── derive_title.py            # LLM: Titel
+├── resolve_document_type.py   # LLM: Dokumenttyp
+├── resolve_correspondent.py   # LLM: Korrespondent
 ├── update_paperless.py
 ├── chunk_document.py          # LLM: semantisches Chunking
 ├── generate_embeddings.py

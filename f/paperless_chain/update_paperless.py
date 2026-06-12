@@ -2,7 +2,6 @@ from f.paperless_chain.shared.paperless_client import patch
 from f.paperless_chain.shared.text_utils import (
     FLOW_PROCESSED_TAG,
     content_tag_names,
-    is_system_tag,
     limit_words,
 )
 
@@ -47,7 +46,7 @@ def _collect_metadata_warnings(
     if not final_correspondent_name:
         warnings.append("Kein Korrespondent ermittelt")
     if not final_content_tag_names:
-        warnings.append("Keine passenden Tags gefunden")
+        warnings.append("Keine Tags gesetzt")
     if created_document_type and created_document_type.get("created"):
         warnings.append(f"Neuer Dokumenttyp angelegt: {created_document_type['name']}")
     if created_correspondent and created_correspondent.get("created"):
@@ -73,7 +72,6 @@ def _merge_created_entity(
 def main(
     doc_id: int,
     title: str,
-    selected_tags: list,
     selected_correspondent: str | None,
     existing_tags: list,
     existing_correspondents: list,
@@ -85,7 +83,7 @@ def main(
     current_correspondent_id: int | None = None,
     current_document_type_id: int | None = None,
     summarize_warnings: list | None = None,
-    analyze_warnings: list | None = None,
+    title_warnings: list | None = None,
     created_document_type: dict | None = None,
     created_correspondent: dict | None = None,
 ) -> dict:
@@ -98,22 +96,10 @@ def main(
     _merge_created_entity(created_document_type, dtype_name_to_id, dtype_id_to_name)
     _merge_created_entity(created_correspondent, corr_name_to_id, corr_id_to_name)
     collected_warnings = list(summarize_warnings or [])
-    collected_warnings.extend(analyze_warnings or [])
+    collected_warnings.extend(title_warnings or [])
     current_ids = list(current_tag_ids or [])
-
-    tag_ids: list[int] = []
-    known_tag_ids: set[int] = set()
-    applied_tag_names: list[str] = []
-    for name in selected_tags:
-        if is_system_tag(name):
-            continue
-        key = name.lower()
-        if key in tag_name_to_id:
-            tag_id = tag_name_to_id[key]
-            applied_tag_names.append(tag_id_to_name[tag_id])
-            if tag_id not in known_tag_ids:
-                tag_ids.append(tag_id)
-                known_tag_ids.add(tag_id)
+    tag_ids = list(dict.fromkeys(current_ids))
+    known_tag_ids = set(tag_ids)
 
     if not _append_tag(FLOW_PROCESSED_TAG, tag_name_to_id, tag_ids, known_tag_ids):
         collected_warnings.append(
@@ -142,10 +128,8 @@ def main(
     cleaned_title = limit_words(title.strip())
     if cleaned_title:
         update_payload["title"] = cleaned_title
-    tags_updated = False
     if set(tag_ids) != set(current_ids):
         update_payload["tags"] = list(dict.fromkeys(tag_ids))
-        tags_updated = True
     if correspondent_id is not None:
         update_payload["correspondent"] = correspondent_id
     if document_type_id is not None:
@@ -160,10 +144,7 @@ def main(
     final_correspondent_name = correspondent_name
     if not final_correspondent_name and current_correspondent_id:
         final_correspondent_name = corr_id_to_name.get(current_correspondent_id)
-    if tags_updated:
-        final_content_tag_names = content_tag_names(applied_tag_names)
-    else:
-        final_content_tag_names = _content_tag_names_from_ids(current_ids, tag_id_to_name)
+    final_content_tag_names = _content_tag_names_from_ids(current_ids, tag_id_to_name)
 
     collected_warnings.extend(
         _collect_metadata_warnings(

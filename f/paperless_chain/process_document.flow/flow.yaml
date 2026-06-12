@@ -57,8 +57,8 @@ value:
           added_date:
             type: javascript
             expr: results.fetch.added_date
-    - id: analyze
-      summary: Extract metadata from document summary
+    - id: derive_title
+      summary: Derive title from document summary
       retry:
         constant:
           attempts: 2
@@ -67,7 +67,33 @@ value:
           expr: "(result?.error?.message || '').includes('Could not parse JSON')"
       value:
         type: script
-        path: f/paperless_chain/analyze_document
+        path: f/paperless_chain/derive_title
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          summary:
+            type: javascript
+            expr: results.summarize.summary
+          added_date:
+            type: javascript
+            expr: results.fetch.added_date
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
+    - id: resolve_document_type
+      summary: Resolve document type when not preset in Paperless
+      skip_if:
+        expr: results.fetch.current_metadata.document_type != null
+      retry:
+        constant:
+          attempts: 2
+          seconds: 5
+        retry_if:
+          expr: "(result?.error?.message || '').includes('Could not parse JSON')"
+      value:
+        type: script
+        path: f/paperless_chain/resolve_document_type
         input_transforms:
           doc_id:
             type: javascript
@@ -78,31 +104,13 @@ value:
           existing_document_types:
             type: javascript
             expr: results.fetch.existing_document_types
-          existing_tags:
-            type: javascript
-            expr: results.fetch.existing_tags
-          existing_correspondents:
-            type: javascript
-            expr: results.fetch.existing_correspondents
-          added_date:
-            type: javascript
-            expr: results.fetch.added_date
-          current_tag_names:
-            type: javascript
-            expr: results.fetch.current_tag_names
-          current_correspondent_id:
-            type: javascript
-            expr: results.fetch.current_metadata.correspondent
-          current_document_type_id:
-            type: javascript
-            expr: results.fetch.current_metadata.document_type
           document_language:
             type: javascript
             expr: results.fetch.document_language
-    - id: generate_missing
-      summary: Generate and create missing doc type / correspondent
+    - id: resolve_correspondent
+      summary: Resolve correspondent when not preset in Paperless
       skip_if:
-        expr: "!results.analyze.need_document_type && !results.analyze.need_correspondent"
+        expr: results.fetch.current_metadata.correspondent != null
       retry:
         constant:
           attempts: 2
@@ -111,7 +119,7 @@ value:
           expr: "(result?.error?.message || '').includes('Could not parse JSON')"
       value:
         type: script
-        path: f/paperless_chain/generate_missing_metadata
+        path: f/paperless_chain/resolve_correspondent
         input_transforms:
           doc_id:
             type: javascript
@@ -119,12 +127,9 @@ value:
           summary:
             type: javascript
             expr: results.summarize.summary
-          need_document_type:
+          existing_correspondents:
             type: javascript
-            expr: results.analyze.need_document_type
-          need_correspondent:
-            type: javascript
-            expr: results.analyze.need_correspondent
+            expr: results.fetch.existing_correspondents
           document_language:
             type: javascript
             expr: results.fetch.document_language
@@ -136,18 +141,13 @@ value:
         input_transforms:
           doc_id:
             type: javascript
-            expr: results.analyze.doc_id
+            expr: results.derive_title.doc_id
           title:
             type: javascript
-            expr: results.analyze.title
-          selected_tags:
-            type: javascript
-            expr: results.analyze.selected_tags
+            expr: results.derive_title.title
           selected_correspondent:
             type: javascript
-            expr: >-
-              results.generate_missing?.selected_correspondent
-              ?? results.analyze.selected_correspondent
+            expr: results.resolve_correspondent?.selected_correspondent
           existing_tags:
             type: javascript
             expr: results.fetch.existing_tags
@@ -162,9 +162,7 @@ value:
             expr: results.fetch.existing_document_types
           selected_document_type:
             type: javascript
-            expr: >-
-              results.generate_missing?.selected_document_type
-              ?? results.analyze.selected_document_type
+            expr: results.resolve_document_type?.selected_document_type
           document_date:
             type: javascript
             expr: results.summarize.document_date
@@ -180,17 +178,18 @@ value:
           summarize_warnings:
             type: javascript
             expr: results.summarize.warnings
-          analyze_warnings:
+          title_warnings:
             type: javascript
             expr: >-
-              [...(results.analyze.warnings || []),
-              ...(results.generate_missing?.warnings || [])]
+              [...(results.derive_title.warnings || []),
+              ...(results.resolve_document_type?.warnings || []),
+              ...(results.resolve_correspondent?.warnings || [])]
           created_document_type:
             type: javascript
-            expr: results.generate_missing?.created_document_type
+            expr: results.resolve_document_type?.created_document_type
           created_correspondent:
             type: javascript
-            expr: results.generate_missing?.created_correspondent
+            expr: results.resolve_correspondent?.created_correspondent
     - id: chunk
       summary: LLM semantic chunking
       retry:

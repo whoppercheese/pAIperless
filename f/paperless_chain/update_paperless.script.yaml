@@ -1,5 +1,5 @@
 summary: Update Paperless document metadata
-description: Patches document metadata in Paperless. Sets content tags from LLM and always applies AI-Processed.
+description: Patches title, document type, correspondent and date in Paperless. Tags are not modified except AI-Processed.
 lock: ''
 kind: script
 schema:
@@ -10,8 +10,6 @@ schema:
       type: integer
     title:
       type: string
-    selected_tags:
-      type: array
     selected_correspondent:
       type: string
       nullable: true
@@ -41,7 +39,7 @@ schema:
     summarize_warnings:
       type: array
       nullable: true
-    analyze_warnings:
+    title_warnings:
       type: array
       nullable: true
     created_document_type:
@@ -53,7 +51,6 @@ schema:
   required:
     - doc_id
     - title
-    - selected_tags
     - existing_tags
     - existing_correspondents
     - existing_document_types
