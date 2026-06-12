@@ -119,7 +119,8 @@ def build_resolve_document_type_prompt(document_language: str) -> str:
     return f"""\
 Du bestimmst den Dokumenttyp für ein Dokument in Paperless-ngx.
 Die Dokumentsprache laut Paperless ist: {lang}.
-Im User-Prompt erhältst du VORHANDENE DOKUMENTTYPEN und die Summary — nicht den Volltext.
+Im User-Prompt erhältst du nur die Summary — nicht den Volltext.
+Der Typ wird als neuer Eintrag in Paperless angelegt.
 Antworte als JSON.
 
 SPRACHE (PFLICHT):
@@ -128,10 +129,8 @@ SPRACHE (PFLICHT):
 
 DOKUMENTTYP:
 - document_type: passender Dokumenttyp auf {lang}
-- Wenn ein Typ aus VORHANDENE DOKUMENTTYPEN passt: exakt diesen Namen verwenden
-- Wenn die Summary die Dokumentart nennt (z.B. Rechnung, Vertrag, Kontoauszug, Brief) und ein passender Typ in VORHANDENE DOKUMENTTYPEN existiert: diesen Namen verwenden
-- Synonyme und Abkürzungen berücksichtigen (z.B. Invoice → Rechnung, KTO-Auszug → Kontoauszug)
-- Wenn kein passender Eintrag in VORHANDENE DOKUMENTTYPEN existiert: kurzen generischen Typ vorschlagen (z.B. Rechnung, Vertrag, Kontoauszug)
+- Kurzer generischer Typ (z.B. Rechnung, Vertrag, Kontoauszug, Brief)
+- Synonyme und Abkürzungen in die Dokumentsprache überführen (z.B. Invoice → Rechnung, KTO-Auszug → Kontoauszug)
 - Nicht zu spezifisch: keine Rechnungsnummern, keine Datumsangaben, keine Beträge im Namen
 - Der Typ muss klar zum Inhalt der Summary passen
 
@@ -143,7 +142,8 @@ def build_resolve_correspondent_prompt(document_language: str) -> str:
     return f"""\
 Du bestimmst den Korrespondenten (Absender) für ein Dokument in Paperless-ngx.
 Die Dokumentsprache laut Paperless ist: {lang}.
-Im User-Prompt erhältst du VORHANDENE KORRESPONDENTEN und die Summary — nicht den Volltext.
+Im User-Prompt erhältst du nur die Summary — nicht den Volltext.
+Der Korrespondent wird als neuer Eintrag in Paperless angelegt.
 Antworte als JSON.
 
 SPRACHE (PFLICHT):
@@ -153,9 +153,7 @@ SPRACHE (PFLICHT):
 
 KORRESPONDENT:
 - correspondent: Absender aus der Summary
-- Wenn ein Eintrag aus VORHANDENE KORRESPONDENTEN passt: exakt diesen Namen verwenden
-- Rechtsformen (GmbH, AG etc.), Titel (Dr., Prof.), Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
-- Wenn kein passender Eintrag in VORHANDENE KORRESPONDENTEN existiert: möglichst kurzen Kernnamen vorschlagen
+- Möglichst kurzer Kernname
 - Nur der Kernname: keine Rechtsformen (GmbH, AG, Inc., Ltd. etc.), keine Domains (.com), keine Zusätze
 - Beispiel: "Amazon.com, Inc." → "Amazon"; "Deutsche Telekom AG" → "Deutsche Telekom"
 - Bei Personen: Vor- und Nachname, ohne Anrede oder Titel
@@ -174,16 +172,8 @@ Summary:
 {summary.strip()}"""
 
 
-def build_resolve_document_type_user_prompt(
-    doc_id: int,
-    summary: str,
-    document_types: list[str],
-) -> str:
-    types_json = json.dumps(document_types, ensure_ascii=False)
+def build_resolve_document_type_user_prompt(doc_id: int, summary: str) -> str:
     return f"""\
-VORHANDENE DOKUMENTTYPEN (bevorzugt exakte Namen aus dieser Liste):
-{types_json}
-
 Bestimme den Dokumenttyp aus der folgenden Summary.
 
 Dokument-ID: {doc_id}
@@ -192,16 +182,8 @@ Summary:
 {summary.strip()}"""
 
 
-def build_resolve_correspondent_user_prompt(
-    doc_id: int,
-    summary: str,
-    correspondents: list[str],
-) -> str:
-    correspondents_json = json.dumps(correspondents, ensure_ascii=False)
+def build_resolve_correspondent_user_prompt(doc_id: int, summary: str) -> str:
     return f"""\
-VORHANDENE KORRESPONDENTEN (bevorzugt exakte Namen aus dieser Liste):
-{correspondents_json}
-
 Bestimme den Korrespondenten aus der folgenden Summary.
 
 Dokument-ID: {doc_id}

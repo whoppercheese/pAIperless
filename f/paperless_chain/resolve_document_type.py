@@ -12,27 +12,18 @@ def _entity_summary(entity: dict, created: bool) -> dict:
     return {"id": entity["id"], "name": entity["name"], "created": created}
 
 
-def _resolve_existing_name(name: str | None, name_to_canonical: dict[str, str]) -> str | None:
-    if not name:
-        return None
-    return name_to_canonical.get(name.lower())
-
-
 def main(
     doc_id: int,
     summary: str,
-    existing_document_types: list,
     document_language: str = "de",
 ) -> dict:
     lang_code = normalize_language(document_language)
     lang_label = language_name(lang_code)
-    type_name_to_canonical = {d["name"].lower(): d["name"] for d in existing_document_types}
-    type_names = list(type_name_to_canonical.values())
 
     warnings: list[str] = []
     result = chat_json(
         build_resolve_document_type_prompt(lang_label),
-        build_resolve_document_type_user_prompt(doc_id, summary, type_names),
+        build_resolve_document_type_user_prompt(doc_id, summary),
         format_schema=DOCUMENT_TYPE_SCHEMA,
     )
 
@@ -42,15 +33,6 @@ def main(
         return {
             "doc_id": doc_id,
             "selected_document_type": None,
-            "created_document_type": None,
-            "warnings": warnings,
-        }
-
-    existing_match = _resolve_existing_name(generated_type, type_name_to_canonical)
-    if existing_match:
-        return {
-            "doc_id": doc_id,
-            "selected_document_type": existing_match,
             "created_document_type": None,
             "warnings": warnings,
         }

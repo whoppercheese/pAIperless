@@ -101,9 +101,6 @@ value:
           summary:
             type: javascript
             expr: results.summarize.summary
-          existing_document_types:
-            type: javascript
-            expr: results.fetch.existing_document_types
           document_language:
             type: javascript
             expr: results.fetch.document_language
@@ -127,9 +124,6 @@ value:
           summary:
             type: javascript
             expr: results.summarize.summary
-          existing_correspondents:
-            type: javascript
-            expr: results.fetch.existing_correspondents
           document_language:
             type: javascript
             expr: results.fetch.document_language

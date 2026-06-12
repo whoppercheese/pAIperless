@@ -1,7 +1,7 @@
 summary: Resolve document type from summary
 description: >-
   LLM call to assign document type when Paperless has none preset.
-  Matches existing types or creates a new one in Paperless.
+  Generates a type from the summary and creates it in Paperless.
 lock: ''
 kind: script
 schema:
@@ -12,12 +12,9 @@ schema:
       type: integer
     summary:
       type: string
-    existing_document_types:
-      type: array
     document_language:
       type: string
       default: de
   required:
     - doc_id
     - summary
-    - existing_document_types
