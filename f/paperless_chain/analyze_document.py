@@ -1,5 +1,9 @@
 from f.paperless_chain.shared.ollama_client import chat_json
-from f.paperless_chain.shared.prompts import ANALYZE_SCHEMA, build_analyze_prompt
+from f.paperless_chain.shared.prompts import (
+    ANALYZE_SCHEMA,
+    build_analyze_prompt,
+    build_analyze_user_prompt,
+)
 from f.paperless_chain.shared.text_utils import (
     content_tag_names,
     is_system_tag,
@@ -42,16 +46,16 @@ def main(
 
     current_tags = content_tag_names(current_tag_names)
 
-    user = f"Dokument-ID: {doc_id}\n\nSummary:\n{summary.strip()}"
     result = chat_json(
-        build_analyze_prompt(
-            lang_label,
+        build_analyze_prompt(lang_label),
+        build_analyze_user_prompt(
+            doc_id,
+            summary,
             type_names,
             tag_names,
             corr_names,
             current_tags=current_tags,
         ),
-        user,
         format_schema=ANALYZE_SCHEMA,
     )
 
