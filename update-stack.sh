@@ -12,12 +12,12 @@ echo "→ git pull"
 git pull --ff-only
 echo
 
-echo "→ docker compose down"
-docker compose down
-echo
-
 echo "→ wmill sync push"
 "$ROOT/wmill-sync.sh"
+echo
+
+echo "→ docker compose down"
+docker compose down
 echo
 
 echo "→ docker compose up -d --build"
