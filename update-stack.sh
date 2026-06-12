@@ -16,6 +16,10 @@ echo "→ docker compose down"
 docker compose down
 echo
 
+echo "→ wmill sync push"
+"$ROOT/wmill-sync.sh"
+echo
+
 echo "→ docker compose up -d --build"
 docker compose up -d --build
 echo
