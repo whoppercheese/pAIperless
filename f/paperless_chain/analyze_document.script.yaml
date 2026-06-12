@@ -1,5 +1,7 @@
 summary: Extract metadata from document summary
-description: Fast LLM call to extract title, date, document type, correspondent and tags from the summary.
+description: >-
+  Extract title, document type, correspondent and tags from the summary.
+  Creates missing document types and correspondents via a second LLM call when needed.
 lock: ''
 kind: script
 schema:

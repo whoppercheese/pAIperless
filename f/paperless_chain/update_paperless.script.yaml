@@ -41,6 +41,15 @@ schema:
     summarize_warnings:
       type: array
       nullable: true
+    analyze_warnings:
+      type: array
+      nullable: true
+    created_document_type:
+      type: object
+      nullable: true
+    created_correspondent:
+      type: object
+      nullable: true
   required:
     - doc_id
     - title

@@ -147,6 +147,15 @@ value:
           summarize_warnings:
             type: javascript
             expr: results.summarize.warnings
+          analyze_warnings:
+            type: javascript
+            expr: results.analyze.warnings
+          created_document_type:
+            type: javascript
+            expr: results.analyze.created_document_type
+          created_correspondent:
+            type: javascript
+            expr: results.analyze.created_correspondent
     - id: chunk
       summary: LLM semantic chunking
       retry:

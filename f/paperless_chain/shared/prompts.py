@@ -148,6 +148,74 @@ title, selected_document_type, selected_correspondent, selected_tags, warnings
 {_json_schema_instruction(ANALYZE_SCHEMA)}"""
 
 
+def build_generate_missing_schema(need_document_type: bool, need_correspondent: bool) -> dict:
+    properties: dict = {}
+    required: list[str] = []
+    if need_document_type:
+        properties["document_type"] = {"type": "string"}
+        required.append("document_type")
+    if need_correspondent:
+        properties["correspondent"] = {"type": "string"}
+        required.append("correspondent")
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+    }
+
+
+def build_generate_missing_prompt(
+    document_language: str,
+    need_document_type: bool,
+    need_correspondent: bool,
+) -> str:
+    lang = document_language
+    sections: list[str] = [
+        f"""\
+Du erzeugst fehlende Metadaten für ein Dokument in Paperless-ngx.
+Die Dokumentsprache laut Paperless ist: {lang}.
+Im User-Prompt erhältst du nur die Summary — nicht den Volltext.
+Kein passender Eintrag existiert in den vorhandenen Paperless-Listen; lege neue, sinnvolle Namen an.
+Antworte als JSON.
+
+SPRACHE (PFLICHT):
+- Alle Namen MUSS vollständig in der Dokumentsprache ({lang}) verfasst sein.
+- NIEMALS in einer anderen Sprache antworten — auch nicht teilweise.
+- Eigennamen, Firmennamen und Beträge unverändert übernehmen.""",
+    ]
+    if need_document_type:
+        sections.append(
+            f"""\
+DOKUMENTTYP:
+- document_type: passender Dokumenttyp auf {lang}, kurz und generisch (z.B. Rechnung, Vertrag, Kontoauszug)
+- Nicht zu spezifisch: keine Rechnungsnummern, keine Datumsangaben, keine Beträge im Namen
+- Der Typ muss klar zum Inhalt der Summary passen"""
+        )
+    if need_correspondent:
+        sections.append(
+            f"""\
+KORRESPONDENT:
+- correspondent: Absender aus der Summary — möglichst kurz und einfach
+- Nur der Kernname: keine Rechtsformen (GmbH, AG, Inc., Ltd. etc.), keine Domains (.com), keine Zusätze
+- Beispiel: "Amazon.com, Inc." → "Amazon"; "Deutsche Telekom AG" → "Deutsche Telekom"
+- Bei Personen: Vor- und Nachname, ohne Anrede oder Titel
+- Keine Adressen, keine E-Mail-Adressen"""
+        )
+    schema = build_generate_missing_schema(need_document_type, need_correspondent)
+    sections.append(_json_schema_instruction(schema))
+    return "\n\n".join(sections)
+
+
+def build_generate_missing_user_prompt(doc_id: int, summary: str) -> str:
+    return f"""\
+Erzeuge die fehlenden Metadaten aus der folgenden Summary.
+
+Dokument-ID: {doc_id}
+
+Summary:
+{summary.strip()}"""
+
+
 def build_analyze_user_prompt(
     doc_id: int,
     summary: str,

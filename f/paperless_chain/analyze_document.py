@@ -1,8 +1,15 @@
 from f.paperless_chain.shared.ollama_client import chat_json
+from f.paperless_chain.shared.paperless_client import (
+    create_or_get_correspondent,
+    create_or_get_document_type,
+)
 from f.paperless_chain.shared.prompts import (
     ANALYZE_SCHEMA,
     build_analyze_prompt,
     build_analyze_user_prompt,
+    build_generate_missing_prompt,
+    build_generate_missing_schema,
+    build_generate_missing_user_prompt,
 )
 from f.paperless_chain.shared.text_utils import (
     content_tag_names,
@@ -17,6 +24,10 @@ def _resolve_existing_name(name: str | None, name_to_canonical: dict[str, str]) 
     if not name:
         return None
     return name_to_canonical.get(name.lower())
+
+
+def _entity_summary(entity: dict) -> dict:
+    return {"id": entity["id"], "name": entity["name"]}
 
 
 def main(
@@ -73,11 +84,49 @@ def main(
 
     raw_document_type = result.get("selected_document_type")
     selected_document_type = _resolve_existing_name(raw_document_type, type_name_to_canonical)
-    if not selected_document_type and current_document_type_id:
-        selected_document_type = type_id_to_name.get(current_document_type_id)
-
     raw_correspondent = result.get("selected_correspondent")
     selected_correspondent = _resolve_existing_name(raw_correspondent, corr_name_to_canonical)
+
+    need_document_type = not selected_document_type and not current_document_type_id
+    need_correspondent = not selected_correspondent and not current_correspondent_id
+
+    created_document_type = None
+    created_correspondent = None
+    warnings: list[str] = []
+
+    if need_document_type or need_correspondent:
+        generated = chat_json(
+            build_generate_missing_prompt(lang_label, need_document_type, need_correspondent),
+            build_generate_missing_user_prompt(doc_id, summary),
+            format_schema=build_generate_missing_schema(need_document_type, need_correspondent),
+        )
+
+        if need_document_type:
+            generated_type = " ".join((generated.get("document_type") or "").split()).strip()
+            if generated_type:
+                try:
+                    entity = create_or_get_document_type(generated_type)
+                    selected_document_type = entity["name"]
+                    created_document_type = _entity_summary(entity)
+                except Exception as exc:
+                    warnings.append(f"Dokumenttyp konnte nicht angelegt werden: {exc}")
+            else:
+                warnings.append("LLM hat keinen Dokumenttyp für Anlage geliefert")
+
+        if need_correspondent:
+            generated_corr = " ".join((generated.get("correspondent") or "").split()).strip()
+            if generated_corr:
+                try:
+                    entity = create_or_get_correspondent(generated_corr)
+                    selected_correspondent = entity["name"]
+                    created_correspondent = _entity_summary(entity)
+                except Exception as exc:
+                    warnings.append(f"Korrespondent konnte nicht angelegt werden: {exc}")
+            else:
+                warnings.append("LLM hat keinen Korrespondenten für Anlage geliefert")
+
+    if not selected_document_type and current_document_type_id:
+        selected_document_type = type_id_to_name.get(current_document_type_id)
     if not selected_correspondent and current_correspondent_id:
         selected_correspondent = corr_id_to_name.get(current_correspondent_id)
 
@@ -87,4 +136,7 @@ def main(
         "selected_tags": selected_tags,
         "selected_correspondent": selected_correspondent,
         "selected_document_type": selected_document_type,
+        "created_document_type": created_document_type,
+        "created_correspondent": created_correspondent,
+        "warnings": warnings,
     }

@@ -49,6 +49,21 @@ def _collect_metadata_warnings(
     return warnings
 
 
+def _merge_created_entity(
+    entity: dict | None,
+    name_to_id: dict[str, int],
+    id_to_name: dict[int, str],
+) -> None:
+    if not entity:
+        return
+    name = (entity.get("name") or "").strip()
+    entity_id = entity.get("id")
+    if not name or entity_id is None:
+        return
+    name_to_id[name.lower()] = entity_id
+    id_to_name[entity_id] = name
+
+
 def main(
     doc_id: int,
     title: str,
@@ -64,6 +79,9 @@ def main(
     current_correspondent_id: int | None = None,
     current_document_type_id: int | None = None,
     summarize_warnings: list | None = None,
+    analyze_warnings: list | None = None,
+    created_document_type: dict | None = None,
+    created_correspondent: dict | None = None,
 ) -> dict:
     tag_name_to_id = {t["name"].lower(): t["id"] for t in existing_tags}
     tag_id_to_name = {t["id"]: t["name"] for t in existing_tags}
@@ -71,7 +89,10 @@ def main(
     corr_id_to_name = {c["id"]: c["name"] for c in existing_correspondents}
     dtype_name_to_id = {d["name"].lower(): d["id"] for d in existing_document_types}
     dtype_id_to_name = {d["id"]: d["name"] for d in existing_document_types}
+    _merge_created_entity(created_document_type, dtype_name_to_id, dtype_id_to_name)
+    _merge_created_entity(created_correspondent, corr_name_to_id, corr_id_to_name)
     collected_warnings = list(summarize_warnings or [])
+    collected_warnings.extend(analyze_warnings or [])
     current_ids = list(current_tag_ids or [])
 
     tag_ids: list[int] = []
