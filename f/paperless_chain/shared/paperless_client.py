@@ -73,24 +73,24 @@ def get_document_tag_names(doc_id: int) -> list[str]:
     ]
 
 
-def create_or_get_document_type(name: str) -> dict:
+def create_or_get_document_type(name: str) -> tuple[dict, bool]:
     cleaned = " ".join(name.split()).strip()
     if not cleaned:
         raise ValueError("document type name is empty")
     for item in paginate("/api/document_types/"):
         if item["name"].lower() == cleaned.lower():
-            return item
-    return post("/api/document_types/", {"name": cleaned})
+            return item, False
+    return post("/api/document_types/", {"name": cleaned}), True
 
 
-def create_or_get_correspondent(name: str) -> dict:
+def create_or_get_correspondent(name: str) -> tuple[dict, bool]:
     cleaned = " ".join(name.split()).strip()
     if not cleaned:
         raise ValueError("correspondent name is empty")
     for item in paginate("/api/correspondents/"):
         if item["name"].lower() == cleaned.lower():
-            return item
-    return post("/api/correspondents/", {"name": cleaned})
+            return item, False
+    return post("/api/correspondents/", {"name": cleaned}), True
 
 
 def add_document_tags(doc_id: int, tag_names: list[str]) -> dict:

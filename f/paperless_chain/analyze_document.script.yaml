@@ -1,7 +1,7 @@
 summary: Extract metadata from document summary
 description: >-
-  Extract title, document type, correspondent and tags from the summary.
-  Creates missing document types and correspondents via a second LLM call when needed.
+  Fast LLM call to extract title, document type, correspondent and tags
+  from the summary using existing Paperless lists only.
 lock: ''
 kind: script
 schema:

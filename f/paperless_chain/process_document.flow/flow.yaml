@@ -99,6 +99,35 @@ value:
           document_language:
             type: javascript
             expr: results.fetch.document_language
+    - id: generate_missing
+      summary: Generate and create missing doc type / correspondent
+      skip_if:
+        expr: "!results.analyze.need_document_type && !results.analyze.need_correspondent"
+      retry:
+        constant:
+          attempts: 2
+          seconds: 5
+        retry_if:
+          expr: "(result?.error?.message || '').includes('Could not parse JSON')"
+      value:
+        type: script
+        path: f/paperless_chain/generate_missing_metadata
+        input_transforms:
+          doc_id:
+            type: javascript
+            expr: results.fetch.doc_id
+          summary:
+            type: javascript
+            expr: results.summarize.summary
+          need_document_type:
+            type: javascript
+            expr: results.analyze.need_document_type
+          need_correspondent:
+            type: javascript
+            expr: results.analyze.need_correspondent
+          document_language:
+            type: javascript
+            expr: results.fetch.document_language
     - id: update
       summary: Update Paperless metadata
       value:
@@ -116,7 +145,9 @@ value:
             expr: results.analyze.selected_tags
           selected_correspondent:
             type: javascript
-            expr: results.analyze.selected_correspondent
+            expr: >-
+              results.generate_missing?.selected_correspondent
+              ?? results.analyze.selected_correspondent
           existing_tags:
             type: javascript
             expr: results.fetch.existing_tags
@@ -131,7 +162,9 @@ value:
             expr: results.fetch.existing_document_types
           selected_document_type:
             type: javascript
-            expr: results.analyze.selected_document_type
+            expr: >-
+              results.generate_missing?.selected_document_type
+              ?? results.analyze.selected_document_type
           document_date:
             type: javascript
             expr: results.summarize.document_date
@@ -149,13 +182,15 @@ value:
             expr: results.summarize.warnings
           analyze_warnings:
             type: javascript
-            expr: results.analyze.warnings
+            expr: >-
+              [...(results.analyze.warnings || []),
+              ...(results.generate_missing?.warnings || [])]
           created_document_type:
             type: javascript
-            expr: results.analyze.created_document_type
+            expr: results.generate_missing?.created_document_type
           created_correspondent:
             type: javascript
-            expr: results.analyze.created_correspondent
+            expr: results.generate_missing?.created_correspondent
     - id: chunk
       summary: LLM semantic chunking
       retry:

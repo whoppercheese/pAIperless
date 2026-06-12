@@ -36,16 +36,22 @@ def _collect_metadata_warnings(
     final_document_type_name: str | None,
     final_correspondent_name: str | None,
     final_content_tag_names: list[str],
+    created_document_type: dict | None,
+    created_correspondent: dict | None,
 ) -> list[str]:
     warnings: list[str] = []
     if not final_title:
         warnings.append("Kein Titel verfügbar")
     if not final_document_type_name:
-        warnings.append("Kein passender Dokumenttyp gefunden")
+        warnings.append("Kein Dokumenttyp ermittelt")
     if not final_correspondent_name:
-        warnings.append("Kein passender Korrespondent gefunden")
+        warnings.append("Kein Korrespondent ermittelt")
     if not final_content_tag_names:
         warnings.append("Keine passenden Tags gefunden")
+    if created_document_type and created_document_type.get("created"):
+        warnings.append(f"Neuer Dokumenttyp angelegt: {created_document_type['name']}")
+    if created_correspondent and created_correspondent.get("created"):
+        warnings.append(f"Neuer Korrespondent angelegt: {created_correspondent['name']}")
     return warnings
 
 
@@ -165,6 +171,8 @@ def main(
             final_document_type_name=final_document_type_name,
             final_correspondent_name=final_correspondent_name,
             final_content_tag_names=final_content_tag_names,
+            created_document_type=created_document_type,
+            created_correspondent=created_correspondent,
         )
     )
 
