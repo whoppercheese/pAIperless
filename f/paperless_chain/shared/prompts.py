@@ -110,19 +110,20 @@ Leite aus der Summary einen Titel ab.
   Keine Rechnungsnummern, vollständigen Firmennamen oder Adressen.
 
 SCHRITT 2: DOKUMENTTYP
-Ordne das Dokument einem Typ aus VORHANDENE DOKUMENTTYPEN zu.
-- selected_document_type: exakter Name aus VORHANDENE DOKUMENTTYPEN, oder null wenn keiner passt
+Bestimme die Dokumentart aus der Summary und ordne sie einem Typ aus VORHANDENE DOKUMENTTYPEN zu.
+- selected_document_type: exakter Name aus VORHANDENE DOKUMENTTYPEN, oder null nur wenn kein passender Typ existiert
 Regeln:
 - NUR Namen aus VORHANDENE DOKUMENTTYPEN verwenden, NIEMALS neue Typen erfinden oder vorschlagen
-- Bevorzuge vorhandene Typen auch bei ungefährer Übereinstimmung
-- Rechtsformen, Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
+- Wenn die Summary die Dokumentart nennt (z.B. Rechnung, Vertrag, Kontoauszug, Brief) und ein passender Typ in VORHANDENE DOKUMENTTYPEN existiert: diesen Typ zuweisen — nicht null
+- Synonyme und Abkürzungen berücksichtigen (z.B. Invoice → Rechnung, KTO-Auszug → Kontoauszug)
+- Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
+- null nur wenn die Summary keine erkennbare Dokumentart enthält oder kein ähnlicher Eintrag in VORHANDENE DOKUMENTTYPEN existiert
 
 SCHRITT 3: KORRESPONDENT
 Bestimme den Absender aus VORHANDENE KORRESPONDENTEN.
 - selected_correspondent: exakter Name aus VORHANDENE KORRESPONDENTEN, oder null wenn keiner passt
 Regeln:
 - NUR Namen aus VORHANDENE KORRESPONDENTEN verwenden, NIEMALS neue Korrespondenten erfinden oder vorschlagen
-- Bevorzuge vorhandene Korrespondenten auch bei ungefährer Übereinstimmung
 - Rechtsformen (GmbH, AG etc.), Titel (Dr., Prof.), Groß-/Kleinschreibung und Umlaute sind beim Vergleich irrelevant
 
 SCHRITT 4: TAGS
